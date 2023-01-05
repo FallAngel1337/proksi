@@ -5,31 +5,31 @@
 pub mod command;
 pub mod addr_type;
 
-use std::net::SocketAddr;
 
+use std::net::IpAddr;
 use command::Command;
 use addr_type::AddrType;
 use crate::utils::Sendible;
 use crate::SOCKS_VERSION;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy)]
 pub struct Request {
     version: u8,
     cmd: Command,
     rsv: u8, // reserved, always 0x0
     atyp: AddrType,
-    dst_addr: Vec<u8>,
+    dst_addr: IpAddr,
     dst_port: u16
 }
 
 impl Request {
-    pub fn new(cmd: Command, atyp: AddrType, dst_addr: &[u8], dst_port: u16) -> Self {
+    pub fn new(cmd: Command, atyp: AddrType, dst_addr: IpAddr, dst_port: u16) -> Self {
         Self {
             version: SOCKS_VERSION,
             cmd,
             rsv: 0x0,
             atyp,
-            dst_addr: dst_addr.to_vec(),
+            dst_addr,
             dst_port
         }
     }
@@ -42,8 +42,8 @@ impl Request {
         &self.atyp
     }
 
-    pub fn socket_addr(&self) -> ( &[u8], u16 ) {
-        (&self.dst_addr, self.dst_port)
+    pub fn socket_addr(&self) -> ( IpAddr, u16 ) {
+        (self.dst_addr, self.dst_port)
     }
 }
 
