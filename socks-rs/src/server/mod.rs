@@ -2,17 +2,21 @@
 //! SOCKS Server releated module
 //! TODO: Add a better description
 
-use std::net::{ToSocketAddrs, SocketAddr};
+use std::net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::sync::Arc;
 use std::io;
 use crate::{
     establish::{Method, EstablishRequest, EstablishResponse},
-    requests::{
+    request::{
         Request,
         command::Command,
         addr_type::AddrType
+    },
+    reply::{
+        Reply,
+        ReplyOpt,
     },
     utils::*,
     SOCKS_VERSION,
@@ -84,8 +88,32 @@ impl Server {
     }
 
     async fn handle_requests(delivery: Arc<Delivery>) -> io::Result<()> {
-        let requets = delivery.recv::<Request>(&mut Vec::with_capacity(100)).await?;
-        delivery.send(requets).await?;
+        let request = delivery.recv::<Request>(&mut Vec::with_capacity(100)).await?;
+
+        let socket_addr = delivery.address().await?;
+        let ip = socket_addr.ip();
+        let port = socket_addr.port();
+
+        if *request.addr_type() == AddrType::DomainName {
+            eprintln!("DomainName is not current supported");
+        }
+
+        match request.command() {
+            Command::Connect => {
+                let reply = Reply::new(ReplyOpt::Succeeded, *request.addr_type(), ip, port);
+                delivery.send(reply).await?;
+
+                let (dst_ip, dst_port) = request.socket_addr();
+            
+                let mut dest_stream = TcpStream::connect((dst_ip, dst_port)).await.unwrap();
+                dest_stream.write_all("batata\n".as_bytes()).await.unwrap();
+
+                // TODO: DATA PIPING
+            }
+            Command::Bind => panic!("No BIND command!"),
+            Command::UdpAssociate => panic!("No UDP command!")
+        };
+
         Ok(())
     }
 
@@ -140,10 +168,10 @@ mod tests {
 
         assert_ne!(*data.method(), Method::NoAcceptableMethods);
 
-        let request = Request::new(Command::Connect, AddrType::DomainName, "localhost".as_bytes(), 8080);
+        let request = Request::new(Command::Connect, AddrType::IpV4, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
         delivery.send::<Request>(request).await.unwrap();
-        let data = delivery.recv::<Request>(&mut Vec::with_capacity(100)).await.unwrap();
-
+        let data = delivery.recv::<Reply>(&mut Vec::with_capacity(100)).await.unwrap();
+        
         println!("{data:?}");
 
         hdl.abort();
