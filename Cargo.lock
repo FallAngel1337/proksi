@@ -5,3 +5,10 @@ version = 3
 [[package]]
 name = "proksi"
 version = "0.1.0"
+dependencies = [
+ "socks-rs",
+]
+
+[[package]]
+name = "socks-rs"
+version = "0.1.0"
