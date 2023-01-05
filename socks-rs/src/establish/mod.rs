@@ -4,9 +4,9 @@
 
 pub(crate) mod methods;
 use methods::Methods;
-use crate::SOCKS_VERSION;
+use crate::{SOCKS_VERSION, Sendible};
 
-/// The request packet
+/// The REQUEST packet to establish the connection
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct EstablishRequest {
     version: u8,
@@ -14,8 +14,15 @@ pub struct EstablishRequest {
     methods: Vec<Methods>
 }
 
+/// The RESPONSE packet to establish the connection
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct EstablishResponse {
+    version: u8,
+    method: Methods
+}
+
 impl EstablishRequest {
-    /// Constructs a new connection establish request
+    /// Constructs a new connection establish REQUEST
     pub fn new(methods: &[Methods]) -> Self {
         Self {
             version: SOCKS_VERSION,
@@ -23,23 +30,21 @@ impl EstablishRequest {
             methods: methods.to_vec()
         }
     }
+}
 
-    /// Serialize into a vector of bytes
-    pub fn serialize(&self) -> Option<Vec<u8>> {
-        bincode::serialize(self)
-        .map_or_else(
-            |e| { eprintln!("Could not serialize the request! {e:?}"); None },
-            Some)
+impl EstablishResponse {
+    /// Constructs a new connection establish RESPONSE
+    pub fn new(method: Methods) -> Self {
+        Self {
+            version: SOCKS_VERSION,
+            method
         }
-        
-    /// Deserialize into a `EstablishRequest`
-    pub fn deserialize(data: &[u8]) -> Option<EstablishRequest> {
-        bincode::deserialize(data)
-        .map_or_else(
-            |e| { eprintln!("Could not deserialize the request! {e:?}"); None },
-            Some)
     }
 }
+
+impl<'s> Sendible<'s> for EstablishRequest {}
+impl<'s> Sendible<'s> for EstablishResponse {}
+
 
 #[cfg(test)]
 mod test {
@@ -49,7 +54,7 @@ mod test {
     fn serr_deser() {
         let estbl = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
         println!("{estbl:?}");
-
+        
         let new = EstablishRequest::deserialize(&estbl.serialize().unwrap()).unwrap();
         println!("{new:?}");
 
