@@ -4,7 +4,7 @@
 
 pub(crate) mod methods;
 pub use methods::Methods;
-use crate::{SOCKS_VERSION, Sendible};
+use crate::{SOCKS_VERSION, utils::*};
 
 /// The REQUEST packet to establish the connection
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

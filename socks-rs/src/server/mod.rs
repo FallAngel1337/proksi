@@ -9,7 +9,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::sync::Arc;
 use crate::{
     establish::{Methods, EstablishRequest, EstablishResponse},
-    SOCKS_VERSION, Sendible
+    SOCKS_VERSION,
+    utils::*,
 };
 
 /// The `Server` struct that holds the
@@ -43,48 +44,32 @@ impl Server {
         let supported_methods = Arc::new(self.supported_methods);
 
         loop {
-            let (mut stream, _) = listener.accept().await?;
+            let (stream, _) = listener.accept().await?;
+            let delivery = Arc::new(Delivery::new(stream));
             let methods = supported_methods.clone();
             
             tokio::spawn(async move {
-                Self::establish(&mut stream, methods.clone()).await.unwrap();
+                Self::establish(delivery.clone(), methods.clone()).await.unwrap();
             });
         }
     }
 
-    async fn establish(stream: &mut TcpStream, methods: Arc<Vec<Methods>>) -> io::Result<()> {
-        let estbl_req = recv::<EstablishRequest>(stream, &mut Vec::with_capacity(100)).await?;
+    async fn establish(delivery: Arc<Delivery>, methods: Arc<Vec<Methods>>) -> io::Result<()> {
+        // let estbl_req = recv::<EstablishRequest>(stream, &mut Vec::with_capacity(100)).await?;
+        let estbl_req = delivery.recv::<EstablishRequest>(&mut Vec::with_capacity(100)).await?;
                 
         if methods.iter().any(
             |x| estbl_req.methods().contains(x)
         ) {
             if let Some(&val) = methods.iter().max_by_key(|&&x| x as u8) {
-                send(stream, EstablishResponse::new(val)).await?;
+                delivery.send(EstablishResponse::new(val)).await?;
             }
         } else {
-            send(stream, EstablishResponse::new(Methods::NoAcceptableMethods)).await?;
+            delivery.send(EstablishResponse::new(Methods::NoAcceptableMethods)).await?;
         }
 
         Ok(())
     }
-}
-
-async fn send<'s, S: Sendible<'s>> (stream: &mut TcpStream, data: S) -> io::Result<()> {
-    stream.write_all(&Sendible::serialize(&data).unwrap()).await?;
-    Ok(())
-}
-
-// TODO: find a way that don't nee to borrow a Vec<u8>
-async fn recv<'s, S: Sendible<'s>>(stream: &mut TcpStream, buf: &'s mut Vec<u8>) -> io::Result<S> {
-    if stream.read_buf(buf).await? == 0 {
-        return Err(
-            io::Error::new(io::ErrorKind::BrokenPipe, "Connection closed!")
-        )
-    }
-    
-    Ok(
-        <S as Sendible>::deserialize(buf).unwrap()
-    )
 }
 
 impl Default for Server {
@@ -108,10 +93,10 @@ mod tests {
         
         time::sleep(Duration::from_secs(3)).await;
 
-        let mut connection = TcpStream::connect(&addr).await.unwrap();
+        let delivery = Delivery::new(TcpStream::connect(&addr).await.unwrap());
         let estbl_req = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
-        send(&mut connection, estbl_req).await.unwrap();
-        let data = recv::<EstablishResponse>(&mut connection, &mut Vec::new()).await.unwrap();
+        delivery.send(estbl_req).await.unwrap();
+        let data = delivery.recv::<EstablishResponse>(&mut Vec::new()).await.unwrap();
 
         hdl.abort();
         time::sleep(Duration::from_secs(1)).await;
@@ -127,10 +112,10 @@ mod tests {
         
         time::sleep(Duration::from_secs(3)).await;
 
-        let mut connection = TcpStream::connect(&addr).await.unwrap();
+        let delivery = Delivery::new(TcpStream::connect(&addr).await.unwrap());
         let estbl_req = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
-        send(&mut connection, estbl_req).await.unwrap();
-        let data = recv::<EstablishResponse>(&mut connection, &mut Vec::new()).await.unwrap();
+        delivery.send(estbl_req).await.unwrap();
+        let data = delivery.recv::<EstablishResponse>(&mut Vec::new()).await.unwrap();
 
         hdl.abort();
         time::sleep(Duration::from_secs(1)).await;
