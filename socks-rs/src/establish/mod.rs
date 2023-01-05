@@ -3,7 +3,7 @@
 //! that need to be sent to the SOCKS server.
 
 pub(crate) mod methods;
-use methods::Methods;
+pub use methods::Methods;
 use crate::{SOCKS_VERSION, Sendible};
 
 /// The REQUEST packet to establish the connection
@@ -30,6 +30,11 @@ impl EstablishRequest {
             methods: methods.to_vec()
         }
     }
+
+    /// `methods` field getter
+    pub fn methods(&self) -> &[Methods] {
+        &self.methods
+    }
 }
 
 impl EstablishResponse {
@@ -39,6 +44,11 @@ impl EstablishResponse {
             version: SOCKS_VERSION,
             method
         }
+    }
+
+    /// `method` field getter
+    pub fn method(&self) -> &Methods {
+        &self.method
     }
 }
 
