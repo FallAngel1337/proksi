@@ -2,8 +2,8 @@
 //! This moodule contains the struct that describes the connection establish request
 //! that need to be sent to the SOCKS server.
 
-pub(crate) mod methods;
-pub use methods::Methods;
+pub(crate) mod method;
+pub use method::Method;
 use crate::{SOCKS_VERSION, utils::*};
 
 /// The REQUEST packet to establish the connection
@@ -11,19 +11,19 @@ use crate::{SOCKS_VERSION, utils::*};
 pub struct EstablishRequest {
     version: u8,
     nmethods: u8,
-    methods: Vec<Methods>
+    methods: Vec<Method>
 }
 
 /// The RESPONSE packet to establish the connection
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct EstablishResponse {
     version: u8,
-    method: Methods
+    method: Method
 }
 
 impl EstablishRequest {
     /// Constructs a new connection establish REQUEST
-    pub fn new(methods: &[Methods]) -> Self {
+    pub fn new(methods: &[Method]) -> Self {
         Self {
             version: SOCKS_VERSION,
             nmethods: methods.len() as u8,
@@ -32,14 +32,14 @@ impl EstablishRequest {
     }
 
     /// `methods` field getter
-    pub fn methods(&self) -> &[Methods] {
+    pub fn methods(&self) -> &[Method] {
         &self.methods
     }
 }
 
 impl EstablishResponse {
     /// Constructs a new connection establish RESPONSE
-    pub fn new(method: Methods) -> Self {
+    pub fn new(method: Method) -> Self {
         Self {
             version: SOCKS_VERSION,
             method
@@ -47,7 +47,7 @@ impl EstablishResponse {
     }
 
     /// `method` field getter
-    pub fn method(&self) -> &Methods {
+    pub fn method(&self) -> &Method {
         &self.method
     }
 }
@@ -62,7 +62,7 @@ mod test {
 
     #[test]
     fn serr_deser() {
-        let estbl = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
+        let estbl = EstablishRequest::new(&[Method::NoAuthenticationRequired, Method::UsernamePassword]);
         println!("{estbl:?}");
         
         let new = EstablishRequest::deserialize(&estbl.serialize().unwrap()).unwrap();

@@ -8,7 +8,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::sync::Arc;
 use crate::{
-    establish::{Methods, EstablishRequest, EstablishResponse},
+    establish::{Method, EstablishRequest, EstablishResponse},
     SOCKS_VERSION,
     utils::*,
 };
@@ -18,13 +18,13 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Server {
     version: u8,
-    supported_methods: Vec<Methods>,
+    supported_methods: Vec<Method>,
     addr: SocketAddr,
 }
 
 impl Server {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, supported_methods: &[Methods]) -> io::Result<Self>
+    pub fn new<S>(addr: S, supported_methods: &[Method]) -> io::Result<Self>
     where
         S: ToSocketAddrs
     {
@@ -54,7 +54,7 @@ impl Server {
         }
     }
 
-    async fn establish(delivery: Arc<Delivery>, methods: Arc<Vec<Methods>>) -> io::Result<()> {
+    async fn establish(delivery: Arc<Delivery>, methods: Arc<Vec<Method>>) -> io::Result<()> {
         // let estbl_req = recv::<EstablishRequest>(stream, &mut Vec::with_capacity(100)).await?;
         let estbl_req = delivery.recv::<EstablishRequest>(&mut Vec::with_capacity(100)).await?;
                 
@@ -65,7 +65,7 @@ impl Server {
                 delivery.send(EstablishResponse::new(val)).await?;
             }
         } else {
-            delivery.send(EstablishResponse::new(Methods::NoAcceptableMethods)).await?;
+            delivery.send(EstablishResponse::new(Method::NoAcceptableMethods)).await?;
         }
 
         Ok(())
@@ -74,7 +74,7 @@ impl Server {
 
 impl Default for Server {
     fn default() -> Self {
-        Self::new("127.0.0.1:1080", &[Methods::NoAuthenticationRequired])
+        Self::new("127.0.0.1:1080", &[Method::NoAuthenticationRequired])
             .unwrap()
     }
 }
@@ -86,7 +86,7 @@ mod tests {
 
     #[tokio::test]
     async fn server_test() {
-        let server = Server::new("127.0.0.1:8000", &[Methods::UsernamePassword]).unwrap();
+        let server = Server::new("127.0.0.1:8000", &[Method::UsernamePassword]).unwrap();
         let addr = server.addr;
 
         let hdl = tokio::spawn(async move { server.start().await.unwrap() });
@@ -94,7 +94,7 @@ mod tests {
         time::sleep(Duration::from_secs(3)).await;
 
         let delivery = Delivery::new(TcpStream::connect(&addr).await.unwrap());
-        let estbl_req = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
+        let estbl_req = EstablishRequest::new(&[Method::NoAuthenticationRequired, Method::UsernamePassword]);
         delivery.send(estbl_req).await.unwrap();
         let data = delivery.recv::<EstablishResponse>(&mut Vec::new()).await.unwrap();
 
@@ -113,7 +113,7 @@ mod tests {
         time::sleep(Duration::from_secs(3)).await;
 
         let delivery = Delivery::new(TcpStream::connect(&addr).await.unwrap());
-        let estbl_req = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
+        let estbl_req = EstablishRequest::new(&[Method::NoAuthenticationRequired, Method::UsernamePassword]);
         delivery.send(estbl_req).await.unwrap();
         let data = delivery.recv::<EstablishResponse>(&mut Vec::new()).await.unwrap();
 
