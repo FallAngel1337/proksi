@@ -8,3 +8,23 @@
 pub(crate) const SOCKS_VERSION: u8 = 0x5;
 
 pub mod establish;
+
+/// To avoid implementating the same (de)serialization
+/// methods every single time for any new time it's easy to just
+/// implement a trait.
+pub(crate) trait Sendible<'s>: serde::Serialize + serde::Deserialize<'s> {
+    fn serialize(&self) -> Option<Vec<u8>> {
+        bincode::serialize(self)
+            .map_or_else(
+                |e| { eprintln!("Could not serialize the request! {e:?}"); None },
+                Some
+            )
+    }
+
+    fn deserialize(data: &'s [u8]) -> Option<Self> {
+        bincode::deserialize(data)
+        .map_or_else(
+            |e| { eprintln!("Could not deserialize the request! {e:?}"); None },
+            Some)
+    }
+}
