@@ -40,3 +40,21 @@ impl EstablishRequest {
             Some)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn serr_deser() {
+        let estbl = EstablishRequest::new(&[Methods::NoAuthenticationRequired, Methods::UsernamePassword]);
+        println!("{estbl:?}");
+
+        let new = EstablishRequest::deserialize(&estbl.serialize().unwrap()).unwrap();
+        println!("{new:?}");
+
+        assert_eq!(estbl.version, new.version);
+        assert_eq!(estbl.nmethods, new.nmethods);
+        assert!(estbl.methods.iter().all(|elem| new.methods.contains(elem)));
+    }
+}
