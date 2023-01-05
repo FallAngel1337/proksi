@@ -1,14 +1,10 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+#![warn(missing_docs)]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+//! # A pure Rust implementation of SOCKS 5 protocol
+//! according to [`RFC 1928`](https://datatracker.ietf.org/doc/html/rfc1928)
+//! TODO: Add a better description and items
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+/// The SOCKS protocol version
+pub(crate) const SOCKS_VERSION: u8 = 0x5;
+
+pub mod establish;
