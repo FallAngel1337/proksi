@@ -2,7 +2,7 @@
 
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use std::sync::Arc;
+use std::{sync::Arc, net::SocketAddr};
 use tokio::sync::Mutex;
 use std::io;
 
@@ -71,5 +71,13 @@ impl Delivery {
         Ok(
             <R as Sendible>::deserialize(buf).unwrap()
         )
+    }
+
+    pub async fn address(&self) -> io::Result<SocketAddr> {
+        self.stream.lock().await.peer_addr()
+    }
+
+    pub fn stream(&self) -> &Arc<Mutex<TcpStream>> {
+        &self.stream
     }
 }
