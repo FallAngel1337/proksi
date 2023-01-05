@@ -10,8 +10,9 @@ pub(crate) const SOCKS_VERSION: u8 = 0x5;
 pub mod establish;
 pub mod server;
 mod utils;
-mod requests;
+mod request;
+mod reply;
 
 // Re-exporting
-pub use requests::command;
-pub use requests::addr_type;
+pub use request::command;
+pub use request::addr_type;
