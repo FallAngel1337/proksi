@@ -8,6 +8,7 @@
 pub(crate) const SOCKS_VERSION: u8 = 0x5;
 
 pub mod establish;
+pub mod server;
 
 /// To avoid implementating the same (de)serialization
 /// methods every single time for any new time it's easy to just
@@ -23,8 +24,9 @@ pub(crate) trait Sendible<'s>: serde::Serialize + serde::Deserialize<'s> {
 
     fn deserialize(data: &'s [u8]) -> Option<Self> {
         bincode::deserialize(data)
-        .map_or_else(
-            |e| { eprintln!("Could not deserialize the request! {e:?}"); None },
-            Some)
+            .map_or_else(
+                |e| { eprintln!("Could not deserialize the request! {e:?}"); None },
+                Some
+            )
     }
 }
