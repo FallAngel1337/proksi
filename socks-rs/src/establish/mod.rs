@@ -36,7 +36,7 @@ impl EstablishRequest {
     pub fn deserialize(data: &[u8]) -> Option<EstablishRequest> {
         bincode::deserialize(data)
         .map_or_else(
-            |e| { eprintln!("Could not serialize the request! {e:?}"); None },
+            |e| { eprintln!("Could not deserialize the request! {e:?}"); None },
             Some)
     }
 }
