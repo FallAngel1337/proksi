@@ -7,19 +7,36 @@ use methods::Methods;
 use crate::SOCKS_VERSION;
 
 /// The request packet
-pub struct EstablishRequest<'a> {
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct EstablishRequest {
     version: u8,
     nmethods: u8,
-    methods: &'a [Methods]
+    methods: Vec<Methods>
 }
 
-impl<'a> EstablishRequest<'a> {
+impl EstablishRequest {
     /// Constructs a new connection establish request
-    pub fn new(methods: &'a [Methods]) -> Self {
+    pub fn new(methods: &[Methods]) -> Self {
         Self {
             version: SOCKS_VERSION,
             nmethods: methods.len() as u8,
-            methods
+            methods: methods.to_vec()
         }
+    }
+
+    /// Serialize into a vector of bytes
+    pub fn serialize(&self) -> Option<Vec<u8>> {
+        bincode::serialize(self)
+        .map_or_else(
+            |e| { eprintln!("Could not serialize the request! {e:?}"); None },
+            Some)
+        }
+        
+    /// Deserialize into a `EstablishRequest`
+    pub fn deserialize(data: &[u8]) -> Option<EstablishRequest> {
+        bincode::deserialize(data)
+        .map_or_else(
+            |e| { eprintln!("Could not serialize the request! {e:?}"); None },
+            Some)
     }
 }
