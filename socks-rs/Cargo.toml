@@ -15,7 +15,8 @@ default-features = false
 features = [
     "net",
     "io-util",
-    "rt"
+    "rt",
+    "sync"
 ]
 
 [dependencies.serde]
