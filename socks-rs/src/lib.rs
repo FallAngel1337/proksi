@@ -11,3 +11,7 @@ pub mod establish;
 pub mod server;
 mod utils;
 mod requests;
+
+// Re-exporting
+pub use requests::command;
+pub use requests::addr_type;
