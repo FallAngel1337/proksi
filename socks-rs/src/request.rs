@@ -62,5 +62,3 @@ impl Request {
         (self.dst_addr, self.dst_port)
     }
 }
-
-impl<'s> Sendible<'s> for Request {}

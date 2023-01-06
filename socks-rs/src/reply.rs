@@ -58,5 +58,3 @@ impl Reply {
         (self.bnd_addr, self.bnd_port)
     }
 }
-
-impl<'s> Sendible<'s> for Reply {}

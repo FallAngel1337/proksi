@@ -65,10 +65,6 @@ impl EstablishResponse {
     }
 }
 
-impl<'s> Sendible<'s> for EstablishRequest {}
-impl<'s> Sendible<'s> for EstablishResponse {}
-
-
 #[cfg(test)]
 mod test {
     use super::*;
