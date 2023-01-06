@@ -1,9 +1,9 @@
 //! # Utils module
 
+use bincode::Options;
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::{sync::Arc, net::SocketAddr};
-use std::marker::PhantomData;
 use tokio::sync::Mutex;
 use std::io;
 
@@ -12,7 +12,7 @@ use std::io;
 /// implement a trait.
 pub trait Sendible<'s>: serde::Serialize + serde::Deserialize<'s> {
     fn serialize(&self) -> Option<Vec<u8>> {
-        bincode::serialize(self)
+        bincode::options().with_no_limit().with_varint_encoding().serialize(self)
             .map_or_else(
                 |e| { eprintln!("Could not serialize the request! {e:?}"); None },
                 Some
@@ -20,9 +20,9 @@ pub trait Sendible<'s>: serde::Serialize + serde::Deserialize<'s> {
     }
 
     fn deserialize(data: &'s [u8]) -> Option<Self> {
-        bincode::deserialize(&data)
+        bincode::options().with_no_limit().with_varint_encoding().deserialize(data)
             .map_or_else(
-                |e| { eprintln!("Could not deserialize the request! {e:?}"); None },
+                |e| { eprintln!("Could not deserialize the request! {e:?} {data:?}"); None },
                 Some
             )
     }
@@ -37,6 +37,7 @@ pub struct Delivery {
     stream: Arc<Mutex<TcpStream>>,
 }
 
+#[allow(unused)]
 impl Delivery {
     pub fn new(stream: TcpStream) -> Self {
         Self {
@@ -51,7 +52,6 @@ impl Delivery {
         Ok(())
     }
 
-    /// TODO: REMOVE THE USE OF A VECTOR REFERENCE
     pub async fn recv<'r, R>(&self) -> io::Result<R>
     where R: Sendible<'r> + Send
     {
@@ -63,20 +63,33 @@ impl Delivery {
     }
 
     pub async fn send_raw(&self, data: &[u8]) -> io::Result<()> {
-        self.stream
+        let mut stream = self.stream
             .lock()
-            .await
+            .await;
+
+        stream
+            .flush()
+            .await?;
+
+       stream
             .write_all(data)
-            .await
-            .unwrap();
+            .await?;
         Ok(())
     }
 
     pub async fn recv_raw(&self) -> io::Result<Vec<u8>> {
         let mut buf = Vec::<u8>::with_capacity(1024);
-        if self.stream
+
+        let mut stream = self.stream
             .lock()
+            .await;
+
+        stream
+            .flush()
             .await
+            .unwrap();
+
+        if stream
             .read_buf(&mut buf)
             .await
             .unwrap() == 0
