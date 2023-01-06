@@ -16,7 +16,7 @@ features = [
     "net",
     "io-util",
     "rt",
-    "sync"
+    "sync",
 ]
 
 [dependencies.serde]
@@ -28,6 +28,6 @@ features = [
 [dev-dependencies.tokio]
 version = "1.23.0"
 features = [
-    "time",
-    "macros"
+    "macros",
+    "time"
 ]
