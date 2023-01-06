@@ -3,6 +3,7 @@
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::{sync::Arc, net::SocketAddr};
+use std::marker::PhantomData;
 use tokio::sync::Mutex;
 use std::io;
 
@@ -33,7 +34,7 @@ where T: serde::Serialize + serde::Deserialize<'s> {}
 /// Wrapper around a TcpStream
 #[derive(Debug)]
 pub struct Delivery {
-    stream: Arc<Mutex<TcpStream>>
+    stream: Arc<Mutex<TcpStream>>,
 }
 
 impl Delivery {
@@ -49,12 +50,15 @@ impl Delivery {
         self.send_raw(&Sendible::serialize(&data).unwrap()).await?;
         Ok(())
     }
-    
+
+    /// TODO: REMOVE THE USE OF A VECTOR REFERENCE
     pub async fn recv<'r, R>(&self) -> io::Result<R>
     where R: Sendible<'r> + Send
     {
+        // Maybe a workaround but it works
+        let data = Box::leak(Box::new(self.recv_raw().await.unwrap()));
         Ok(
-            <R as Sendible>::deserialize(self.recv_raw().await?).unwrap()
+            <R as Sendible>::deserialize(data).unwrap()
         )
     }
 
@@ -68,7 +72,7 @@ impl Delivery {
         Ok(())
     }
 
-    pub async fn recv_raw<'r>(&self) -> io::Result<Vec<u8>> {
+    pub async fn recv_raw(&self) -> io::Result<Vec<u8>> {
         let mut buf = Vec::<u8>::with_capacity(1024);
         if self.stream
             .lock()

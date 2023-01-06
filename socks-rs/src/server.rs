@@ -71,7 +71,7 @@ impl Server {
 
     // TODO: implement the user and password authentication if selected
     async fn handle_establish(delivery: Arc<Delivery>, methods: Arc<Vec<Method>>) -> io::Result<()> {
-        let estbl_req = delivery.recv::<EstablishRequest>(&mut Vec::with_capacity(100)).await?;
+        let estbl_req = delivery.recv::<EstablishRequest>().await?;
                 
         if methods.iter().any(
             |x| estbl_req.methods().contains(x)
@@ -88,7 +88,7 @@ impl Server {
     }
 
     async fn handle_requests(delivery: Arc<Delivery>) -> io::Result<()> {
-        let request = delivery.recv::<Request>(&mut Vec::with_capacity(100)).await?;
+        let request = delivery.recv::<Request>().await?;
 
         let socket_addr = delivery.address().await?;
         let ip = socket_addr.ip();
@@ -129,6 +129,7 @@ impl Default for Server {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
     use tokio::time::{self, Duration};
 
     #[tokio::test]
@@ -143,7 +144,7 @@ mod tests {
         let delivery = Delivery::new(TcpStream::connect(&addr).await.unwrap());
         let estbl_req = EstablishRequest::new(&[Method::NoAuthenticationRequired, Method::UsernamePassword]);
         delivery.send(estbl_req).await.unwrap();
-        let data = delivery.recv::<EstablishResponse>(&mut Vec::new()).await.unwrap();
+        let data = delivery.recv::<EstablishResponse>().await.unwrap();
 
         assert_ne!(*data.method(), Method::NoAcceptableMethods);
 
@@ -164,13 +165,13 @@ mod tests {
         let delivery = Delivery::new(TcpStream::connect(&addr).await.unwrap());
         let estbl_req = EstablishRequest::new(&[Method::NoAuthenticationRequired, Method::UsernamePassword]);
         delivery.send(estbl_req).await.unwrap();
-        let data = delivery.recv::<EstablishResponse>(&mut Vec::new()).await.unwrap();
+        let data = delivery.recv::<EstablishResponse>().await.unwrap();
 
         assert_ne!(*data.method(), Method::NoAcceptableMethods);
 
         let request = Request::new(Command::Connect, AddrType::IpV4, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
         delivery.send::<Request>(request).await.unwrap();
-        let data = delivery.recv::<Reply>(&mut Vec::with_capacity(100)).await.unwrap();
+        let data = delivery.recv::<Reply>().await.unwrap();
         
         println!("{data:?}");
 
