@@ -1,14 +1,28 @@
 //! # Reply
 //! Module for server replies/reponses
 
-mod reply_opts;
-
-
 use std::net::IpAddr;
-pub use reply_opts::ReplyOpt;
 use crate::SOCKS_VERSION;
-use crate::addr_type::AddrType;
+use crate::request::AddrType;
 use crate::utils::Sendible;
+
+#[allow(missing_docs)]
+#[derive(
+    serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq
+)]
+pub enum ReplyOpt {
+    Succeeded = 0x0,
+    SocksServerFailure = 0x1,
+    ConnectionNotAllowed = 0x2,
+    NetworkUnreachable = 0x3,
+    HostUnreachable = 0x4,
+    ConnectionRefused = 0x5,
+    TtlExpired = 0x6,
+    CommandNotSupported = 0x7,
+    AddressTypeNotSupported = 0x8,
+}
+
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy)]
 pub struct Reply {

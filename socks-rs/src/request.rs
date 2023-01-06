@@ -2,15 +2,31 @@
 //! Contains the `Request` struct according and 
 //! to [`RFC 1928`](https://datatracker.ietf.org/doc/html/rfc1928)
 
-pub mod command;
-pub mod addr_type;
-
-
 use std::net::IpAddr;
-use command::Command;
-use addr_type::AddrType;
 use crate::utils::Sendible;
 use crate::SOCKS_VERSION;
+
+#[allow(missing_docs)]
+#[derive(
+    serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq
+)]
+pub enum AddrType {
+    IpV4 = 0x1,
+    DomainName = 0x3,
+    IpV6 = 0x4,
+}
+
+#[allow(missing_docs)]
+#[derive(
+    serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq
+)]
+pub enum Command {
+    Connect = 0x1,
+    Bind = 0x2,
+    UdpAssociate = 0x3,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy)]
 pub struct Request {

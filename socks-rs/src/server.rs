@@ -2,17 +2,17 @@
 //! SOCKS Server releated module
 //! TODO: Add a better description
 
-use std::net::{ToSocketAddrs, SocketAddr, IpAddr, Ipv4Addr};
+use std::net::{ToSocketAddrs, SocketAddr};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use std::sync::Arc;
 use std::io;
 use crate::{
     establish::{Method, EstablishRequest, EstablishResponse},
     request::{
         Request,
-        command::Command,
-        addr_type::AddrType
+        Command,
+        AddrType
     },
     reply::{
         Reply,

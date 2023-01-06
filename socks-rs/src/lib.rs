@@ -12,7 +12,3 @@ pub mod server;
 mod utils;
 mod request;
 mod reply;
-
-// Re-exporting
-pub use request::command;
-pub use request::addr_type;

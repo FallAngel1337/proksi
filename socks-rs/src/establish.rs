@@ -2,9 +2,22 @@
 //! This moodule contains the struct that describes the connection establish request
 //! that need to be sent to the SOCKS server.
 
-pub(crate) mod method;
-pub use method::Method;
 use crate::{SOCKS_VERSION, utils::*};
+
+#[allow(missing_docs)]
+#[repr(u8)]
+#[derive(
+    serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq
+)]
+
+pub enum Method {
+    NoAuthenticationRequired = 0x0,
+    Gssapi = 0x1,
+    UsernamePassword = 0x2,
+    NoAcceptableMethods = 0xff,
+}
+
 
 /// The REQUEST packet to establish the connection
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
