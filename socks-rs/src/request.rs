@@ -29,7 +29,10 @@ pub enum Command {
     UdpAssociate = 0x3,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy)]
+#[derive(
+    serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq
+)]
 pub struct Request {
     version: u8,
     cmd: Command,
@@ -62,5 +65,35 @@ impl Request {
 
     pub fn socket_addr(&self) -> ( IpAddr, u16 ) {
         (self.dst_addr, self.dst_port)
+    }
+}
+
+impl From<u8> for AddrType {
+    fn from(value: u8) -> Self {
+        match value {
+            0x1 => AddrType::IpV4,
+            0x3 => AddrType::DomainName,
+            0x4 => AddrType::IpV6,
+            _ => panic!("Out of range value")
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+    use crate::utils::Sendible;
+
+    #[test]
+    fn request_serr_deser() {
+        let request = Request::new(Command::Connect, AddrType::IpV4, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1080);
+        let serialized = request.serialize().unwrap();
+        let new = Request::deserialize(&serialized).unwrap();
+        
+        println!("{serialized:?}");
+        println!("{request:?}\n{new:?}");
+
+        assert_eq!(request, new);
     }
 }

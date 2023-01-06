@@ -68,16 +68,17 @@ impl EstablishResponse {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::utils::Sendible;
 
     #[test]
     fn establish_serr_deser() {
         let estbl = EstablishRequest::new(&[Method::NoAuthenticationRequired]);
-        let serializad = estbl.serialize().unwrap();
-        let new = EstablishRequest::deserialize(&serializad).unwrap();
+        let serialized = estbl.serialize().unwrap();
+        let new = EstablishRequest::deserialize(&serialized).unwrap();
 
         assert_eq!(estbl.version, new.version);
         assert_eq!(estbl.nmethods, new.nmethods);
         assert!(estbl.methods.iter().all(|elem| new.methods.contains(elem)));
-        assert_eq!(serializad, [5, 2, 0, 1])
+        assert_eq!(serialized, [5, 1, 1, 0])
     }
 }
