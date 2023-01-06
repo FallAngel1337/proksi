@@ -4,7 +4,6 @@
 use std::net::IpAddr;
 use crate::SOCKS_VERSION;
 use crate::request::AddrType;
-use crate::utils::Sendible;
 
 #[allow(missing_docs)]
 #[derive(
@@ -34,6 +33,7 @@ pub struct Reply {
     bnd_port: u16,
 }
 
+#[allow(unused)]
 impl Reply {
     pub fn new(rep: ReplyOpt, atyp: AddrType, bnd_addr: IpAddr, bnd_port: u16) -> Self {
         Self {

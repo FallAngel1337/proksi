@@ -3,10 +3,10 @@
 //! to [`RFC 1928`](https://datatracker.ietf.org/doc/html/rfc1928)
 
 use std::net::IpAddr;
-use crate::utils::Sendible;
 use crate::SOCKS_VERSION;
 
 #[allow(missing_docs)]
+#[repr(u8)]
 #[derive(
     serde::Serialize, serde::Deserialize,
     Debug, Clone, Copy, PartialEq
@@ -18,6 +18,7 @@ pub enum AddrType {
 }
 
 #[allow(missing_docs)]
+#[repr(u8)]
 #[derive(
     serde::Serialize, serde::Deserialize,
     Debug, Clone, Copy, PartialEq
@@ -38,6 +39,7 @@ pub struct Request {
     dst_port: u16
 }
 
+#[allow(unused)]
 impl Request {
     pub fn new(cmd: Command, atyp: AddrType, dst_addr: IpAddr, dst_port: u16) -> Self {
         Self {

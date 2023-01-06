@@ -2,7 +2,7 @@
 //! This moodule contains the struct that describes the connection establish request
 //! that need to be sent to the SOCKS server.
 
-use crate::{SOCKS_VERSION, utils::*};
+use crate::SOCKS_VERSION;
 
 #[allow(missing_docs)]
 #[repr(u8)]
@@ -70,15 +70,14 @@ mod test {
     use super::*;
 
     #[test]
-    fn serr_deser() {
-        let estbl = EstablishRequest::new(&[Method::NoAuthenticationRequired, Method::UsernamePassword]);
-        println!("{estbl:?}");
-        
-        let new = EstablishRequest::deserialize(&estbl.serialize().unwrap()).unwrap();
-        println!("{new:?}");
+    fn establish_serr_deser() {
+        let estbl = EstablishRequest::new(&[Method::NoAuthenticationRequired]);
+        let serializad = estbl.serialize().unwrap();
+        let new = EstablishRequest::deserialize(&serializad).unwrap();
 
         assert_eq!(estbl.version, new.version);
         assert_eq!(estbl.nmethods, new.nmethods);
         assert!(estbl.methods.iter().all(|elem| new.methods.contains(elem)));
+        assert_eq!(serializad, [5, 2, 0, 1])
     }
 }
