@@ -13,20 +13,19 @@ pub mod method {
     pub const NO_ACCEPTABLE_METHODS: u8 = 0xff;
 }
 
-
 /// The REQUEST packet to establish the connection
 #[derive(Debug, Clone)]
 pub struct EstablishRequest {
     version: u8,
     nmethods: u8,
-    methods: Vec<u8>
+    methods: Vec<u8>,
 }
 
 /// The RESPONSE packet to establish the connection
 #[derive(Debug, Clone)]
 pub struct EstablishResponse {
     version: u8,
-    method: u8
+    method: u8,
 }
 
 impl EstablishRequest {
@@ -35,7 +34,7 @@ impl EstablishRequest {
         Self {
             version: SOCKS_VERSION,
             nmethods: methods.len() as u8,
-            methods: methods.to_vec()
+            methods: methods.to_vec(),
         }
     }
 
@@ -50,7 +49,7 @@ impl EstablishResponse {
     pub fn new(method: u8) -> Self {
         Self {
             version: SOCKS_VERSION,
-            method
+            method,
         }
     }
 
@@ -70,13 +69,11 @@ impl<'s> Sendible<'s> for EstablishRequest {
     fn deserialize(data: &'s [u8]) -> Option<Self> {
         let (version, nmethods, methods) = (data[0], data[1], (&data[1..]).to_vec());
 
-        Some(
-            Self {
-                version,
-                nmethods,
-                methods
-            }
-        )
+        Some(Self {
+            version,
+            nmethods,
+            methods,
+        })
     }
 }
 
@@ -87,12 +84,7 @@ impl<'s> Sendible<'s> for EstablishResponse {
 
     fn deserialize(data: &'s [u8]) -> Option<Self> {
         let (version, method) = (data[0], data[1]);
-        Some(
-            Self {
-                version,
-                method
-            }
-        )
+        Some(Self { version, method })
     }
 }
 

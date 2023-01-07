@@ -1,10 +1,13 @@
 //! # Utils module
 
-use tokio::{net::TcpStream, io::{AsyncRead, BufStream}};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use std::{sync::Arc, net::SocketAddr};
-use tokio::sync::Mutex;
 use std::io;
+use std::{net::SocketAddr, sync::Arc};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::Mutex;
+use tokio::{
+    io::{AsyncRead, BufStream},
+    net::TcpStream,
+};
 
 /// To avoid implementating the same (de)serialization
 /// methods every single time for any new time it's easy to just
@@ -16,59 +19,53 @@ pub trait Sendible<'s>: Sized {
 }
 
 #[derive(Debug)]
-pub struct Delivery<'a, RW = TcpStream> 
-where RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
+pub struct Delivery<'a, RW = TcpStream>
+where
+    RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
 {
-    stream: &'a mut RW
+    stream: &'a mut RW,
 }
 
 #[allow(unused)]
 impl<'a, RW> Delivery<'a, RW>
-where RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
+where
+    RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
 {
     pub fn new(stream: &'a mut RW) -> Self {
-        Self {
-            stream
-        }
+        Self { stream }
     }
 
     pub async fn send<'s, S>(&mut self, data: S) -> io::Result<()>
     where
-        S: Sendible<'s> + Send
+        S: Sendible<'s> + Send,
     {
         self.send_raw(&Sendible::serialize(&data).unwrap()).await
     }
 
     pub async fn recv<'r, S>(&mut self) -> io::Result<S>
     where
-        S: Sendible<'r> + Send
+        S: Sendible<'r> + Send,
     {
         // Maybe a workaround but it works
         let data = Box::leak(Box::new(self.recv_raw().await.unwrap()));
-        Ok(
-            <S as Sendible>::deserialize(data).unwrap()
-        )
+        Ok(<S as Sendible>::deserialize(data).unwrap())
     }
 
     #[inline]
     pub async fn send_raw(&mut self, data: &[u8]) -> io::Result<()> {
-       self.stream.write_all(data).await
+        self.stream.write_all(data).await
     }
 
     pub async fn recv_raw(&mut self) -> io::Result<Vec<u8>> {
         let mut buf = Vec::<u8>::with_capacity(1024);
 
-        if self
-            .stream
-            .read_buf(&mut buf)
-            .await
-            .unwrap() == 0
-        {
-            return Err(
-                io::Error::new(io::ErrorKind::BrokenPipe, "Connection closed!")
-            )
+        if self.stream.read_buf(&mut buf).await.unwrap() == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "Connection closed!",
+            ));
         }
-        
+
         Ok(buf)
     }
 
@@ -79,5 +76,4 @@ where RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
     pub fn get_ref_mut(&mut self) -> &mut RW {
         self.stream
     }
-
 }

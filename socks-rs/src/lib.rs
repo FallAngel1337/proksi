@@ -8,7 +8,7 @@
 pub(crate) const SOCKS_VERSION: u8 = 0x5;
 
 pub mod establish;
+mod reply;
+mod request;
 pub mod server;
 mod utils;
-mod request;
-mod reply;

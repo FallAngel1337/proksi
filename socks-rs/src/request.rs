@@ -1,9 +1,9 @@
 //! # Requests
-//! Contains the `Request` struct according and 
+//! Contains the `Request` struct according and
 //! to [`RFC 1928`](https://datatracker.ietf.org/doc/html/rfc1928)
 
-use crate::SOCKS_VERSION;
 use crate::utils::Sendible;
+use crate::SOCKS_VERSION;
 
 #[allow(missing_docs)]
 pub mod addr_type {
@@ -26,7 +26,7 @@ pub struct Request<'a> {
     rsv: u8, // reserved, always 0x0
     atyp: u8,
     dst_addr: &'a [u8],
-    dst_port: u16
+    dst_port: u16,
 }
 
 #[allow(unused)]
@@ -38,7 +38,7 @@ impl<'a> Request<'a> {
             rsv: 0x0,
             atyp,
             dst_addr,
-            dst_port
+            dst_port,
         }
     }
 
@@ -50,7 +50,7 @@ impl<'a> Request<'a> {
         self.atyp
     }
 
-    pub fn socket_addr(&self) -> ( &[u8], u16 ) {
+    pub fn socket_addr(&self) -> (&[u8], u16) {
         (self.dst_addr, self.dst_port)
     }
 }
@@ -59,7 +59,10 @@ impl<'s> Sendible<'s> for Request<'s> {
     fn serialize(&self) -> Option<Vec<u8>> {
         let mut data = vec![self.version, self.cmd, self.rsv, self.atyp];
         data.extend(self.dst_addr);
-        data.extend([((self.dst_port >> 8) & 0xff) as u8, (self.dst_port & 0xff) as u8]);
+        data.extend([
+            ((self.dst_port >> 8) & 0xff) as u8,
+            (self.dst_port & 0xff) as u8,
+        ]);
         Some(data)
     }
 
@@ -70,26 +73,23 @@ impl<'s> Sendible<'s> for Request<'s> {
             addr_type::IP_V4 => 8_usize,
             addr_type::DOMAIN_NAME => panic!("Can't do DOMAINNAME yet"),
             addr_type::IP_V6 => 20_usize,
-            _ => panic!("Invalid address type")
+            _ => panic!("Invalid address type"),
         };
 
         let dst_addr = &data[4..offset];
         let dst_port = &data[offset..];
         let dst_port = (dst_port[0] as u16) << 8 | (dst_port[1] as u16);
 
-        Some(
-            Self {
-                version,
-                cmd,
-                rsv,
-                atyp,
-                dst_addr,
-                dst_port
-            }
-        )
+        Some(Self {
+            version,
+            cmd,
+            rsv,
+            atyp,
+            dst_addr,
+            dst_port,
+        })
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -100,7 +100,7 @@ mod test {
         let request = Request::new(command::CONNECT, addr_type::IP_V4, &[127, 0, 0, 1], 1080);
         let serialized = request.serialize().unwrap();
         let new = Request::deserialize(&serialized).unwrap();
-        
+
         println!("{serialized:?}");
         println!("{request:?}\n{new:?}");
 

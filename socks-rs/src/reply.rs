@@ -1,8 +1,8 @@
 //! # Reply
 //! Module for server replies/reponses
 
-use crate::{SOCKS_VERSION, utils::Sendible};
 use crate::request::addr_type;
+use crate::{utils::Sendible, SOCKS_VERSION};
 
 #[allow(missing_docs, unused)]
 pub mod reply_opt {
@@ -36,7 +36,7 @@ impl<'a> Reply<'a> {
             rsv: 0x0,
             atyp,
             bnd_addr,
-            bnd_port
+            bnd_port,
         }
     }
 
@@ -48,7 +48,7 @@ impl<'a> Reply<'a> {
         self.atyp
     }
 
-    pub fn socket_addr(&self) -> ( &[u8], u16 ) {
+    pub fn socket_addr(&self) -> (&[u8], u16) {
         (self.bnd_addr, self.bnd_port)
     }
 }
@@ -57,7 +57,10 @@ impl<'s> Sendible<'s> for Reply<'s> {
     fn serialize(&self) -> Option<Vec<u8>> {
         let mut data = vec![self.version, self.rep, self.rsv, self.atyp];
         data.extend(self.bnd_addr);
-        data.extend([((self.bnd_port >> 8) & 0xff) as u8, (self.bnd_port & 0xff) as u8]);
+        data.extend([
+            ((self.bnd_port >> 8) & 0xff) as u8,
+            (self.bnd_port & 0xff) as u8,
+        ]);
         Some(data)
     }
 
@@ -68,7 +71,7 @@ impl<'s> Sendible<'s> for Reply<'s> {
             addr_type::IP_V4 => 8_usize,
             addr_type::DOMAIN_NAME => panic!("Can't do DOMAINNAME yet"),
             addr_type::IP_V6 => 20_usize,
-            _ => panic!("Invalid address type")
+            _ => panic!("Invalid address type"),
         };
 
         let bnd_addr = &data[4..offset];
@@ -76,16 +79,14 @@ impl<'s> Sendible<'s> for Reply<'s> {
         let bnd_port = &data[offset..];
         let bnd_port = (bnd_port[0] as u16) << 8 | (bnd_port[1] as u16);
 
-        Some(
-            Self {
-                version,
-                rep,
-                rsv,
-                atyp,
-                bnd_addr,
-                bnd_port
-            }
-        )
+        Some(Self {
+            version,
+            rep,
+            rsv,
+            atyp,
+            bnd_addr,
+            bnd_port,
+        })
     }
 }
 
@@ -95,10 +96,15 @@ mod test {
 
     #[test]
     fn reply_serr_deser() {
-        let reply = Reply::new(reply_opt::COMMAND_NOT_SUPPORTED, addr_type::IP_V4, &[127, 0, 0, 1], 1080);
+        let reply = Reply::new(
+            reply_opt::COMMAND_NOT_SUPPORTED,
+            addr_type::IP_V4,
+            &[127, 0, 0, 1],
+            1080,
+        );
         let serialize = reply.serialize().unwrap();
         let new = Reply::deserialize(&serialize).unwrap();
-        
+
         println!("{serialize:?}");
         println!("{reply:?}\n{new:?}");
 
