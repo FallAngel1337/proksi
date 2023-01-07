@@ -80,19 +80,35 @@ impl<'s> Sendible<'s> for EstablishRequest {
     }
 }
 
+impl<'s> Sendible<'s> for EstablishResponse {
+    fn serialize(&self) -> Option<Vec<u8>> {
+        Some(vec![self.version, self.method])
+    }
+
+    fn deserialize(data: &'s [u8]) -> Option<Self> {
+        let (version, method) = (data[0], data[1]);
+        Some(
+            Self {
+                version,
+                method
+            }
+        )
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
     fn establish_serr_deser() {
-        let estbl = EstablishRequest::new(&[Method::NoAuthenticationRequired]);
+        let estbl = EstablishRequest::new(&[method::NO_AUTHENTICATION_REQUIRED]);
         let serialized = estbl.serialize().unwrap();
         let new = EstablishRequest::deserialize(&serialized).unwrap();
 
         assert_eq!(estbl.version, new.version);
         assert_eq!(estbl.nmethods, new.nmethods);
         assert!(estbl.methods.iter().all(|elem| new.methods.contains(elem)));
-        assert_eq!(serialized, [5, 1, 1, 0])
+        assert_eq!(serialized, [5, 1, 0])
     }
 }

@@ -2,8 +2,8 @@
 //! Contains the `Request` struct according and 
 //! to [`RFC 1928`](https://datatracker.ietf.org/doc/html/rfc1928)
 
-use std::net::IpAddr;
 use crate::SOCKS_VERSION;
+use crate::utils::Sendible;
 
 #[allow(missing_docs)]
 pub mod addr_type {
@@ -20,18 +20,18 @@ pub mod command {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Request {
+pub struct Request<'a> {
     version: u8,
     cmd: u8,
     rsv: u8, // reserved, always 0x0
     atyp: u8,
-    dst_addr: IpAddr,
+    dst_addr: &'a [u8],
     dst_port: u16
 }
 
 #[allow(unused)]
-impl Request {
-    pub fn new(cmd: u8, atyp: u8, dst_addr: IpAddr, dst_port: u16) -> Self {
+impl<'a> Request<'a> {
+    pub fn new(cmd: u8, atyp: u8, dst_addr: &'a [u8], dst_port: u16) -> Self {
         Self {
             version: SOCKS_VERSION,
             cmd,
@@ -50,20 +50,54 @@ impl Request {
         self.atyp
     }
 
-    pub fn socket_addr(&self) -> ( IpAddr, u16 ) {
+    pub fn socket_addr(&self) -> ( &[u8], u16 ) {
         (self.dst_addr, self.dst_port)
     }
 }
 
+impl<'s> Sendible<'s> for Request<'s> {
+    fn serialize(&self) -> Option<Vec<u8>> {
+        let mut data = vec![self.version, self.cmd, self.rsv, self.atyp];
+        data.extend(self.dst_addr);
+        data.extend([((self.dst_port >> 8) & 0xff) as u8, (self.dst_port & 0xff) as u8]);
+        Some(data)
+    }
+
+    fn deserialize(data: &'s [u8]) -> Option<Self> {
+        let (version, cmd, rsv, atyp) = (data[0], data[1], data[2], data[3]);
+
+        let offset = match atyp {
+            addr_type::IP_V4 => 8_usize,
+            addr_type::DOMAIN_NAME => panic!("Can't do DOMAINNAME yet"),
+            addr_type::IP_V6 => 20_usize,
+            _ => panic!("Invalid address type")
+        };
+
+        let dst_addr = &data[4..offset];
+        let dst_port = &data[offset..];
+        let dst_port = (dst_port[0] as u16) << 8 | (dst_port[1] as u16);
+
+        Some(
+            Self {
+                version,
+                cmd,
+                rsv,
+                atyp,
+                dst_addr,
+                dst_port
+            }
+        )
+    }
+}
+
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
-    use crate::utils::Sendible;
 
     #[test]
     fn request_serr_deser() {
-        let request = Request::new(Command::Connect, AddrType::IpV4, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1080);
+        let request = Request::new(command::CONNECT, addr_type::IP_V4, &[127, 0, 0, 1], 1080);
         let serialized = request.serialize().unwrap();
         let new = Request::deserialize(&serialized).unwrap();
         

@@ -1,6 +1,5 @@
 //! # Utils module
 
-use bincode::Options;
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::{sync::Arc, net::SocketAddr};
@@ -10,26 +9,11 @@ use std::io;
 /// To avoid implementating the same (de)serialization
 /// methods every single time for any new time it's easy to just
 /// implement a trait.
-pub trait Sendible<'s>: serde::Serialize + serde::Deserialize<'s> {
-    fn serialize(&self) -> Option<Vec<u8>> {
-        bincode::options().with_no_limit().with_varint_encoding().serialize(self)
-            .map_or_else(
-                |e| { eprintln!("Could not serialize the request! {e:?}"); None },
-                Some
-            )
-    }
+pub trait Sendible<'s>: Sized {
+    fn serialize(&self) -> Option<Vec<u8>>;
 
-    fn deserialize(data: &'s [u8]) -> Option<Self> {
-        bincode::options().with_no_limit().with_varint_encoding().deserialize(data)
-            .map_or_else(
-                |e| { eprintln!("Could not deserialize the request! {e:?} {data:?}"); None },
-                Some
-            )
-    }
+    fn deserialize(data: &'s [u8]) -> Option<Self>;
 }
-
-impl<'s, T> Sendible<'s> for T
-where T: serde::Serialize + serde::Deserialize<'s> {}
 
 /// Wrapper around a TcpStream
 #[derive(Debug)]
