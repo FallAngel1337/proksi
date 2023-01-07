@@ -1,6 +1,6 @@
 //! # Utils module
 
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, io::{AsyncRead, BufStream}};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::{sync::Arc, net::SocketAddr};
 use tokio::sync::Mutex;
@@ -15,65 +15,51 @@ pub trait Sendible<'s>: Sized {
     fn deserialize(data: &'s [u8]) -> Option<Self>;
 }
 
-/// Wrapper around a TcpStream
 #[derive(Debug)]
-pub struct Delivery {
-    stream: Arc<Mutex<TcpStream>>,
+pub struct Delivery<'a, RW = TcpStream> 
+where RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
+{
+    stream: &'a mut RW
 }
 
 #[allow(unused)]
-impl Delivery {
-    pub fn new(stream: TcpStream) -> Self {
+impl<'a, RW> Delivery<'a, RW>
+where RW: AsyncReadExt + AsyncWriteExt + Send + Unpin,
+{
+    pub fn new(stream: &'a mut RW) -> Self {
         Self {
-            stream: Arc::new(Mutex::new(stream)),
+            stream
         }
     }
 
-    pub async fn send<'s, S>(&self, data: S) -> io::Result<()>
-    where S: Sendible<'s> + Send
+    pub async fn send<'s, S>(&mut self, data: S) -> io::Result<()>
+    where
+        S: Sendible<'s> + Send
     {
-        self.send_raw(&Sendible::serialize(&data).unwrap()).await?;
-        Ok(())
+        self.send_raw(&Sendible::serialize(&data).unwrap()).await
     }
 
-    pub async fn recv<'r, R>(&self) -> io::Result<R>
-    where R: Sendible<'r> + Send
+    pub async fn recv<'r, S>(&mut self) -> io::Result<S>
+    where
+        S: Sendible<'r> + Send
     {
         // Maybe a workaround but it works
         let data = Box::leak(Box::new(self.recv_raw().await.unwrap()));
         Ok(
-            <R as Sendible>::deserialize(data).unwrap()
+            <S as Sendible>::deserialize(data).unwrap()
         )
     }
 
-    pub async fn send_raw(&self, data: &[u8]) -> io::Result<()> {
-        let mut stream = self.stream
-            .lock()
-            .await;
-
-        stream
-            .flush()
-            .await?;
-
-       stream
-            .write_all(data)
-            .await?;
-        Ok(())
+    #[inline]
+    pub async fn send_raw(&mut self, data: &[u8]) -> io::Result<()> {
+       self.stream.write_all(data).await
     }
 
-    pub async fn recv_raw(&self) -> io::Result<Vec<u8>> {
+    pub async fn recv_raw(&mut self) -> io::Result<Vec<u8>> {
         let mut buf = Vec::<u8>::with_capacity(1024);
 
-        let mut stream = self.stream
-            .lock()
-            .await;
-
-        stream
-            .flush()
-            .await
-            .unwrap();
-
-        if stream
+        if self
+            .stream
             .read_buf(&mut buf)
             .await
             .unwrap() == 0
@@ -86,11 +72,12 @@ impl Delivery {
         Ok(buf)
     }
 
-    pub async fn address(&self) -> io::Result<SocketAddr> {
-        self.stream.lock().await.peer_addr()
+    pub fn get_ref(&self) -> &RW {
+        &*self.stream
     }
 
-    pub fn stream(&self) -> Arc<Mutex<TcpStream>> {
-        self.stream.clone()
+    pub fn get_ref_mut(&mut self) -> &mut RW {
+        self.stream
     }
+
 }
