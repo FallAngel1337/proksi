@@ -3,30 +3,22 @@
 
 use std::net::IpAddr;
 use crate::SOCKS_VERSION;
-use crate::request::AddrType;
+use crate::request::addr_type::*;
 
 #[allow(missing_docs)]
-#[repr(u8)]
-#[derive(
-    serde::Serialize, serde::Deserialize,
-    Debug, Clone, Copy, PartialEq
-)]
-pub enum ReplyOpt {
-    Succeeded = 0x0,
-    SocksServerFailure = 0x1,
-    ConnectionNotAllowed = 0x2,
-    NetworkUnreachable = 0x3,
-    HostUnreachable = 0x4,
-    ConnectionRefused = 0x5,
-    TtlExpired = 0x6,
-    CommandNotSupported = 0x7,
-    AddressTypeNotSupported = 0x8,
+pub mod reply_opt {
+    pub const SUCCEEDED: u8 = 0x0;
+    pub const SOCKS_SERVER_FAILURE: u8 = 0x1;
+    pub const CONNECTION_NOT_ALLOWED: u8 = 0x2;
+    pub const NETWORK_UNREACHABLE: u8 = 0x3;
+    pub const HOST_UNREACHABLE: u8 = 0x4;
+    pub const CONNECTION_REFUSED: u8 = 0x5;
+    pub const TTL_EXPIRED: u8 = 0x6;
+    pub const COMMAND_NOT_SUPPORTED: u8 = 0x7;
+    pub const ADDRESS_TYPE_NOT_SUPPORTED: u8 = 0x8;
 }
 
-#[derive(
-    serde::Serialize, serde::Deserialize,
-    Debug, Clone, Copy, PartialEq
-)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Reply {
     version: u8,
     rep: u8,
@@ -38,7 +30,7 @@ pub struct Reply {
 
 #[allow(unused)]
 impl Reply {
-    pub fn new(rep: ReplyOpt, atyp: AddrType, bnd_addr: IpAddr, bnd_port: u16) -> Self {
+    pub fn new(rep: u8, atyp: u8, bnd_addr: IpAddr, bnd_port: u16) -> Self {
         Self {
             version: SOCKS_VERSION,
             rep: rep as u8,
@@ -49,33 +41,16 @@ impl Reply {
         }
     }
 
-    pub fn reply(&self) -> ReplyOpt {
-        ReplyOpt::from(self.rep)
+    pub fn reply(&self) -> u8 {
+        self.rep
     }
 
-    pub fn addr_type(&self) -> AddrType {
-        AddrType::from(self.atyp)
+    pub fn addr_type(&self) -> u8 {
+        self.atyp
     }
 
     pub fn socket_addr(&self) -> ( IpAddr, u16 ) {
         (self.bnd_addr, self.bnd_port)
-    }
-}
-
-impl From<u8> for ReplyOpt {
-    fn from(value: u8) -> Self {
-        match value {
-            0x0 => ReplyOpt::Succeeded,
-            0x1 => ReplyOpt::SocksServerFailure,
-            0x2 => ReplyOpt::ConnectionNotAllowed,
-            0x3 => ReplyOpt::NetworkUnreachable,
-            0x4 => ReplyOpt::HostUnreachable,
-            0x5 => ReplyOpt::ConnectionRefused,
-            0x6 => ReplyOpt::TtlExpired,
-            0x7 => ReplyOpt::CommandNotSupported,
-            0x8 => ReplyOpt::AddressTypeNotSupported,
-            _ => panic!("Out of range value")
-        }
     }
 }
 

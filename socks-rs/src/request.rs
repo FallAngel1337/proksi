@@ -6,45 +6,32 @@ use std::net::IpAddr;
 use crate::SOCKS_VERSION;
 
 #[allow(missing_docs)]
-#[repr(u8)]
-#[derive(
-    serde::Serialize, serde::Deserialize,
-    Debug, Clone, Copy, PartialEq
-)]
-pub enum AddrType {
-    IpV4 = 0x1,
-    DomainName = 0x3,
-    IpV6 = 0x4,
+pub mod addr_type {
+    pub const IP_V4: u8 = 0x1;
+    pub const DOMAIN_NAME: u8 = 0x3;
+    pub const IP_V6: u8 = 0x4;
 }
 
 #[allow(missing_docs)]
-#[repr(u8)]
-#[derive(
-    serde::Serialize, serde::Deserialize,
-    Debug, Clone, Copy, PartialEq
-)]
-pub enum Command {
-    Connect = 0x1,
-    Bind = 0x2,
-    UdpAssociate = 0x3,
+pub mod command {
+    pub const CONNECT: u8 = 0x1;
+    pub const BIND: u8 = 0x2;
+    pub const UDP_ASSOCIATE: u8 = 0x3;
 }
 
-#[derive(
-    serde::Serialize, serde::Deserialize,
-    Debug, Clone, Copy, PartialEq
-)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Request {
     version: u8,
-    cmd: Command,
+    cmd: u8,
     rsv: u8, // reserved, always 0x0
-    atyp: AddrType,
+    atyp: u8,
     dst_addr: IpAddr,
     dst_port: u16
 }
 
 #[allow(unused)]
 impl Request {
-    pub fn new(cmd: Command, atyp: AddrType, dst_addr: IpAddr, dst_port: u16) -> Self {
+    pub fn new(cmd: u8, atyp: u8, dst_addr: IpAddr, dst_port: u16) -> Self {
         Self {
             version: SOCKS_VERSION,
             cmd,
@@ -55,27 +42,16 @@ impl Request {
         }
     }
 
-    pub fn command(&self) -> &Command {
-        &self.cmd
+    pub fn command(&self) -> u8 {
+        self.cmd
     }
 
-    pub fn addr_type(&self) -> &AddrType {
-        &self.atyp
+    pub fn addr_type(&self) -> u8 {
+        self.atyp
     }
 
     pub fn socket_addr(&self) -> ( IpAddr, u16 ) {
         (self.dst_addr, self.dst_port)
-    }
-}
-
-impl From<u8> for AddrType {
-    fn from(value: u8) -> Self {
-        match value {
-            0x1 => AddrType::IpV4,
-            0x3 => AddrType::DomainName,
-            0x4 => AddrType::IpV6,
-            _ => panic!("Out of range value")
-        }
     }
 }
 
