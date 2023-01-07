@@ -68,7 +68,7 @@ impl<'s> Sendible<'s> for EstablishRequest {
     }
 
     fn deserialize(data: &'s [u8]) -> Option<Self> {
-        let (version, nmethods, methods) = (data[0], data[1], (&data[1..]).iter().cloned().collect());
+        let (version, nmethods, methods) = (data[0], data[1], (&data[1..]).to_vec());
 
         Some(
             Self {
