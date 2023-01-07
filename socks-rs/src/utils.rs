@@ -1,13 +1,8 @@
 //! # Utils module
 
-use std::io;
-use std::{net::SocketAddr, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::Mutex;
-use tokio::{
-    io::{AsyncRead, BufStream},
-    net::TcpStream,
-};
+use tokio::{net::TcpStream};
+use std::io;
 
 /// To avoid implementating the same (de)serialization
 /// methods every single time for any new time it's easy to just

@@ -22,6 +22,7 @@ use tokio::{
 /// SOCKS Server configuration
 #[derive(Debug, Clone)]
 pub struct Server {
+    #[allow(dead_code)]
     version: u8,
     supported_methods: Arc<Vec<u8>>,
     addr: SocketAddr,
