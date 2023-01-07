@@ -16,6 +16,7 @@ features = [
     "io-util",
     "rt",
     "sync",
+    "macros"
 ]
 
 [dev-dependencies.tokio]
