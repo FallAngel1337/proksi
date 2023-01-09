@@ -29,10 +29,10 @@ pub struct Reply<'a> {
     /// RESERVED
     pub rsv: u8,
     
-    /// ddress type
+    /// address type
     pub atyp: u8,
 
-    ///  server bound address
+    /// server bound address
     pub bnd_addr: &'a [u8],
 
     /// server bound port in network octet order
