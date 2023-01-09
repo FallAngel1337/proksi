@@ -1,9 +1,6 @@
 mod server;
-<<<<<<< HEAD
-=======
 
 use socks_rs::establish::method;
->>>>>>> fcd17cf (Revert the (bad) idea)
 use std::env;
 
 #[tokio::main]
