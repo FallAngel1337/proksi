@@ -2,6 +2,7 @@ use socks_rs::{
     establish::{method, EstablishRequest, EstablishResponse},
     reply::{reply_opt, Reply},
     request::{addr_type, command, Request},
+    auth::{AuthRequest, AuthResponse},
     Sendible, SOCKS_VERSION,
 };
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -10,17 +11,32 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct User<'a> {
+    username: &'a str,
+    password: &'a str
+}
+
+// TODO: Parse from a config file
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct Server<'a> {
     version: u8,
     auth: &'a [u8],
     addr: SocketAddr,
+    allowed_users: Option<&'a [User<'a>]>
+}
+
+#[allow(missing_docs, unused)]
+impl<'a> User<'a> {
+    pub fn new(username: &'a str, password: &'a str) -> Self {
+        Self { username, password }
+    }
 }
 
 impl<'a> Server<'a> {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, auth: &'a [u8]) -> io::Result<Self>
+    pub fn new<S>(addr: S, auth: &'a [u8], allowed_users: Option<&'a [User<'a>]>) -> io::Result<Self>
     where
         S: ToSocketAddrs,
     {
@@ -29,6 +45,7 @@ impl<'a> Server<'a> {
             version: SOCKS_VERSION,
             auth,
             addr,
+            allowed_users
         })
     }
 
@@ -39,26 +56,55 @@ impl<'a> Server<'a> {
         loop {
             let (mut stream, _) = listener.accept().await?;
 
-            Self::handle_establish(&mut stream, self.auth).await?;
-            Self::handle_requests(&mut stream).await?;
+            self.handle_establish(&mut stream).await?;
+            self.handle_requests(&mut stream).await?;
         }
     }
 
-    // TODO: implement the user and password authentication if selected
-    async fn handle_establish(stream: &mut TcpStream, methods: &[u8]) -> io::Result<()> {
+    // TODO: refactor this later
+    async fn handle_establish(&self, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
 
-        if methods
+        if self.auth
             .iter()
             .any(|x| establish_request.methods.contains(x))
         {
-            if let Some(&method) = methods.iter().max_by_key(|&&x| x) {
+            if let Some(&method) = self.auth.iter().max_by_key(|&&x| x) {
                 stream
                     .write_all(&EstablishResponse::new(method).serialize()?)
                     .await
                     .unwrap();
+
+                match method {
+                    method::NO_AUTHENTICATION_REQUIRED => (),
+                    method::USERNAME_PASSWORD => if let Some(list) = self.allowed_users {
+                        let mut buf = Vec::with_capacity(100);
+                        stream.read_buf(&mut buf).await?;
+                        let auth_request = AuthRequest::deserialize(&buf)?;
+
+                        let user = User {
+                            username: std::str::from_utf8(auth_request.uname).unwrap(),
+                            password: std::str::from_utf8(auth_request.passwd).unwrap()
+                        };
+
+                        if list.contains(&user) {
+                            let response = AuthResponse::new(0x0).serialize()?;
+                            stream.write_all(&response).await?;
+                        } else {
+                            let response = AuthResponse::new(0x1).serialize()?;
+                            stream.write_all(&response).await?;
+                            
+                            return Err(io::Error::new(
+                                io::ErrorKind::ConnectionAborted,
+                                "USER NOT FOUND",
+                            ));
+                        };
+
+                    },
+                    _ => ()
+                }
             }
         } else {
             stream
@@ -73,7 +119,7 @@ impl<'a> Server<'a> {
         Ok(())
     }
 
-    async fn handle_requests(stream: &mut TcpStream) -> io::Result<()> {
+    async fn handle_requests(&self, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let request = Request::deserialize(&buf)?;
@@ -137,7 +183,7 @@ impl<'a> Server<'a> {
 
 impl Default for Server<'_> {
     fn default() -> Self {
-        Self::new("127.0.0.1:1080", &[method::NO_AUTHENTICATION_REQUIRED]).unwrap()
+        Self::new("127.0.0.1:1080", &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap()
     }
 }
 
@@ -163,7 +209,7 @@ mod tests {
     }
 
     async fn server_run(addr: impl ToSocketAddrs) -> (SocketAddr, JoinHandle<()>) {
-        let server = Server::new(addr, &[method::NO_AUTHENTICATION_REQUIRED]).unwrap();
+        let server = Server::new(addr, &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
         let addr = server.addr;
         let handler = tokio::spawn(async move {
                 server.start().await.unwrap()
