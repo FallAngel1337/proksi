@@ -8,6 +8,25 @@ edition = "2021"
 [dependencies]
 socks-rs = { path = "./socks-rs" }
 
+[dependencies.tokio]
+version = "1.23.0"
+default-features = false
+features = [
+    "net",
+    "io-util",
+    "rt-multi-thread",
+    "macros"
+]
+
+[dev-dependencies.tokio]
+version = "1.23.0"
+features = [
+    "time"
+]
+
+[features]
+tokio = []
+
 [workspace]
 members = [
     "socks-rs"
