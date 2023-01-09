@@ -76,7 +76,6 @@ impl<'s> Sendible<'s> for Reply<'s> {
         };
 
         let bnd_addr = &data[4..offset];
-        println!(">> {bnd_addr:?}");
         let bnd_port = &data[offset..];
         let bnd_port = (bnd_port[0] as u16) << 8 | (bnd_port[1] as u16);
 
