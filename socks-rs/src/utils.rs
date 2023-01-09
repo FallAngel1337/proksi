@@ -2,11 +2,13 @@
 
 use std::io;
 
-/// To avoid implementating the same (de)serialization
-/// methods every single time for any new time it's easy to just
-/// implement a trait.
+/// `Sendible` trait indicates if a type can be
+/// sendible through the network as raw bytes and
+/// be converted back from.
 pub trait Sendible<'s>: Sized {
+    /// Serialize into raw bytes 
     fn serialize(&self) -> io::Result<Vec<u8>>;
 
+    /// Deserialize bytes back
     fn deserialize(data: &'s [u8]) -> io::Result<Self>;
 }
