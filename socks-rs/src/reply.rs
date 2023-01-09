@@ -39,7 +39,6 @@ pub struct Reply<'a> {
     pub bnd_port: u16,
 }
 
-#[allow(unused)]
 impl<'a> Reply<'a> {
     /// Creates a new reply response
     pub fn new(rep: u8, atyp: u8, bnd_addr: &'a [u8], bnd_port: u16) -> Self {

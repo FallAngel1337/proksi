@@ -19,7 +19,7 @@ pub mod command {
     pub const UDP_ASSOCIATE: u8 = 0x3;
 }
 
-///
+/// The request struct (client-only)
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Request<'a> {
     /// protocol version (0x5)
@@ -41,7 +41,6 @@ pub struct Request<'a> {
     pub dst_port: u16,
 }
 
-#[allow(unused)]
 impl<'a> Request<'a> {
     /// Creates a new request (client-only)
     pub fn new(cmd: u8, atyp: u8, dst_addr: &'a [u8], dst_port: u16) -> Self {
