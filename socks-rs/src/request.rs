@@ -56,17 +56,17 @@ impl<'a> Request<'a> {
 }
 
 impl<'s> Sendible<'s> for Request<'s> {
-    fn serialize(&self) -> Option<Vec<u8>> {
+    fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.cmd, self.rsv, self.atyp];
         data.extend(self.dst_addr);
         data.extend([
             ((self.dst_port >> 8) & 0xff) as u8,
             (self.dst_port & 0xff) as u8,
         ]);
-        Some(data)
+        Ok(data)
     }
 
-    fn deserialize(data: &'s [u8]) -> Option<Self> {
+    fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, cmd, rsv, atyp) = (data[0], data[1], data[2], data[3]);
 
         let offset = match atyp {
@@ -80,7 +80,7 @@ impl<'s> Sendible<'s> for Request<'s> {
         let dst_port = &data[offset..];
         let dst_port = (dst_port[0] as u16) << 8 | (dst_port[1] as u16);
 
-        Some(Self {
+        Ok(Self {
             version,
             cmd,
             rsv,

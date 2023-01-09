@@ -60,16 +60,16 @@ impl EstablishResponse {
 }
 
 impl<'s> Sendible<'s> for EstablishRequest {
-    fn serialize(&self) -> Option<Vec<u8>> {
+    fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.nmethods];
         data.extend(self.methods.iter().cloned());
-        Some(data)
+        Ok(data)
     }
 
-    fn deserialize(data: &'s [u8]) -> Option<Self> {
+    fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, nmethods, methods) = (data[0], data[1], data[1..].to_vec());
 
-        Some(Self {
+        Ok(Self {
             version,
             nmethods,
             methods,
@@ -78,13 +78,13 @@ impl<'s> Sendible<'s> for EstablishRequest {
 }
 
 impl<'s> Sendible<'s> for EstablishResponse {
-    fn serialize(&self) -> Option<Vec<u8>> {
-        Some(vec![self.version, self.method])
+    fn serialize(&self) -> std::io::Result<Vec<u8>> {
+        Ok(vec![self.version, self.method])
     }
 
-    fn deserialize(data: &'s [u8]) -> Option<Self> {
+    fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, method) = (data[0], data[1]);
-        Some(Self { version, method })
+        Ok(Self { version, method })
     }
 }
 

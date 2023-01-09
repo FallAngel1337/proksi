@@ -54,17 +54,17 @@ impl<'a> Reply<'a> {
 }
 
 impl<'s> Sendible<'s> for Reply<'s> {
-    fn serialize(&self) -> Option<Vec<u8>> {
+    fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.rep, self.rsv, self.atyp];
         data.extend(self.bnd_addr);
         data.extend([
             ((self.bnd_port >> 8) & 0xff) as u8,
             (self.bnd_port & 0xff) as u8,
         ]);
-        Some(data)
+        Ok(data)
     }
 
-    fn deserialize(data: &'s [u8]) -> Option<Self> {
+    fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, rep, rsv, atyp) = (data[0], data[1], data[2], data[3]);
 
         let offset = match atyp {
@@ -79,7 +79,7 @@ impl<'s> Sendible<'s> for Reply<'s> {
         let bnd_port = &data[offset..];
         let bnd_port = (bnd_port[0] as u16) << 8 | (bnd_port[1] as u16);
 
-        Some(Self {
+        Ok(Self {
             version,
             rep,
             rsv,
