@@ -100,11 +100,11 @@ mod test {
     fn request_serr_deser() {
         let request = Request::new(command::CONNECT, addr_type::IP_V4, &[127, 0, 0, 1], 1080);
         let serialized = request.serialize().unwrap();
-        let new = Request::deserialize(&serialized).unwrap();
+        let from_bytes = Request::deserialize(&serialized).unwrap();
+        assert_eq!(request, from_bytes);
 
-        println!("{serialized:?}");
-        println!("{request:?}\n{new:?}");
-
-        assert_eq!(request, new);
+        let bytes = [5, 1, 0, 1, 142, 250, 219, 14, 0, 80];
+        let request = Request::deserialize(&bytes).unwrap();
+        assert_eq!(request, Request::new(1, 1, &[142, 250, 219, 14], 80))
     }
 }

@@ -103,11 +103,11 @@ mod test {
             1080,
         );
         let serialize = reply.serialize().unwrap();
-        let new = Reply::deserialize(&serialize).unwrap();
+        let from_bytes = Reply::deserialize(&serialize).unwrap();
+        assert_eq!(reply, from_bytes);
 
-        println!("{serialize:?}");
-        println!("{reply:?}\n{new:?}");
-
-        assert_eq!(reply, new)
+        let bytes = [5, 0, 0, 1, 127, 0, 0, 1, 0, 80];
+        let reply = Reply::deserialize(&bytes).unwrap();
+        assert_eq!(reply, Reply::new(reply_opt::SUCCEEDED, addr_type::IP_V4, &[127, 0, 0, 1], 80));
     }
 }

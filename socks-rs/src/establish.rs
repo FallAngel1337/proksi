@@ -14,7 +14,7 @@ pub mod method {
 }
 
 /// The request to establish the connection (client-only)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EstablishRequest<'a> {
     /// protocol version (0x5)
     pub version: u8,
@@ -27,7 +27,7 @@ pub struct EstablishRequest<'a> {
 }
 
 /// The RESPONSE packet to establish the connection (server-only)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EstablishResponse {
     /// protocol version (0x5)
     pub version: u8,
@@ -65,7 +65,7 @@ impl<'s> Sendible<'s> for EstablishRequest<'s> {
     }
 
     fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
-        let (version, nmethods, methods) = (data[0], data[1], &data[1..]);
+        let (version, nmethods, methods) = (data[0], data[1], &data[2..]);
 
         Ok(Self {
             version,
@@ -91,14 +91,26 @@ mod test {
     use super::*;
 
     #[test]
-    fn establish_serr_deser() {
-        let estbl = EstablishRequest::new(&[method::NO_AUTHENTICATION_REQUIRED]);
-        let serialized = estbl.serialize().unwrap();
-        let new = EstablishRequest::deserialize(&serialized).unwrap();
+    fn establish_request_serr_deser() {
+        let establish_request = EstablishRequest::new(&[method::NO_AUTHENTICATION_REQUIRED]);
+        let serialized = establish_request.serialize().unwrap();
+        let from_bytes = EstablishRequest::deserialize(&serialized).unwrap();
+        assert_eq!(establish_request, from_bytes);
 
-        assert_eq!(estbl.version, new.version);
-        assert_eq!(estbl.nmethods, new.nmethods);
-        assert!(estbl.methods.iter().all(|elem| new.methods.contains(elem)));
-        assert_eq!(serialized, [5, 1, 0])
+        let bytes = [5, 2, 0, 2];
+        let establish_request = EstablishRequest::deserialize(&bytes).unwrap();
+        assert_eq!(establish_request, EstablishRequest::new(&[method::NO_AUTHENTICATION_REQUIRED, method::USERNAME_PASSWORD]));
+    }
+
+    #[test]
+    fn establish_response_serr_deser() {
+        let establish_request = EstablishResponse::new(method::NO_AUTHENTICATION_REQUIRED);
+        let serialized = establish_request.serialize().unwrap();
+        let from_bytes = EstablishResponse::deserialize(&serialized).unwrap();
+        assert_eq!(establish_request, from_bytes);
+
+        let bytes = [5, 2];
+        let establish_request = EstablishResponse::deserialize(&bytes).unwrap();
+        assert_eq!(establish_request, EstablishResponse::new(method::USERNAME_PASSWORD));
     }
 }
