@@ -10,6 +10,14 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub struct Server<'a> {
+    version: u8,
+    auth: &'a [u8],
+    addr: SocketAddr,
+}
+
 impl<'a> Server<'a> {
     /// Constructs a new Server
     pub fn new<S>(addr: S, auth: &'a [u8]) -> io::Result<Self>
