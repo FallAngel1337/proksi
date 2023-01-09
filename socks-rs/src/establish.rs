@@ -16,16 +16,24 @@ pub mod method {
 /// The request to establish the connection (client-only)
 #[derive(Debug, Clone)]
 pub struct EstablishRequest<'a> {
-    version: u8,
-    nmethods: u8,
-    methods: &'a [u8],
+    /// protocol version (0x5)
+    pub version: u8,
+
+    /// number of method identifier octets that appear in the METHODS field.
+    pub nmethods: u8,
+
+    /// supported methods
+    pub methods: &'a [u8],
 }
 
 /// The RESPONSE packet to establish the connection (server-only)
 #[derive(Debug, Clone)]
 pub struct EstablishResponse {
-    version: u8,
-    method: u8,
+    /// protocol version (0x5)
+    pub version: u8,
+
+    /// selected method by server
+    pub method: u8,
 }
 
 impl<'a> EstablishRequest<'a> {
