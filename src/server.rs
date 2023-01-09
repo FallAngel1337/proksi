@@ -45,14 +45,8 @@ impl<'a> Server<'a> {
         loop {
             let (mut stream, _) = listener.accept().await?;
 
-            if Self::handle_establish(&mut stream, self.supported_methods)
-                .await
-                .is_err()
-            {
-                break Ok(());
-            }
-
-            Self::handle_requests(&mut stream).await.unwrap();
+            Self::handle_establish(&mut stream, self.supported_methods).await?;
+            Self::handle_requests(&mut stream).await?;
         }
     }
 
@@ -66,9 +60,9 @@ impl<'a> Server<'a> {
             .iter()
             .any(|x| establish_request.methods.contains(x))
         {
-            if let Some(&val) = methods.iter().max_by_key(|&&x| x) {
+            if let Some(&method) = methods.iter().max_by_key(|&&x| x) {
                 stream
-                    .write_all(&establish_request.serialize()?)
+                    .write_all(&EstablishResponse::new(method).serialize()?)
                     .await
                     .unwrap();
             }
@@ -156,92 +150,100 @@ impl Default for Server<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{self, Duration};
+    use tokio::{
+        time::{self, Duration},
+        task::JoinHandle
+    };
 
     #[tokio::test]
-    async fn server_establish_test() {
-        let server = Server::new("127.0.0.1:1080", &[method::NO_AUTHENTICATION_REQUIRED]).unwrap();
-        let addr = server.addr;
+    async fn main_test() {
+        let (addr, handler) = server_run("127.0.0.1:1080").await;
+        let mut stream = TcpStream::connect(addr).await.unwrap();
 
-        let hdl = tokio::spawn(async move { server.start().await.unwrap() });
+        assert!(server_establish_test(&mut stream).await.is_ok());
+        assert!(server_request_test(&mut stream).await.is_ok());
 
-        time::sleep(Duration::from_secs(2)).await;
-
-        let mut stream = TcpStream::connect(&addr).await.unwrap();
-        let estbl_req = EstablishRequest::new(&[
-            method::NO_AUTHENTICATION_REQUIRED,
-            method::USERNAME_PASSWORD,
-        ]);
-        let mut delivery = Delivery::new(&mut stream);
-        delivery.send(estbl_req).await.unwrap();
-        let data = delivery.recv::<EstablishResponse>().await.unwrap();
-
-        assert_ne!(*data.method(), method::NO_ACCEPTABLE_METHODS);
-
-        println!("{data:?}");
-
-        hdl.abort();
+        handler.abort();
         time::sleep(Duration::from_secs(1)).await;
-        assert!(hdl.is_finished());
+        assert!(handler.is_finished());
     }
 
-    #[tokio::test]
-    async fn server_request_test() {
-        let server = Server::new("127.0.0.1:1081", &[method::NO_AUTHENTICATION_REQUIRED]).unwrap();
+    async fn server_run(addr: impl ToSocketAddrs) -> (SocketAddr, JoinHandle<()>) {
+        let server = Server::new(addr, &[method::NO_AUTHENTICATION_REQUIRED]).unwrap();
         let addr = server.addr;
-
-        let hdl = tokio::spawn(async move { server.start().await.unwrap() });
-
+        let handler = tokio::spawn(async move {
+                server.start().await.unwrap()
+            }
+        );
         time::sleep(Duration::from_secs(2)).await;
+        (addr, handler)
+    }
 
-        let mut stream = TcpStream::connect(&addr).await.unwrap();
-        let estbl_req = EstablishRequest::new(&[
+    async fn server_establish_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
+        let establish_request = EstablishRequest::new(&[
             method::NO_AUTHENTICATION_REQUIRED,
             method::USERNAME_PASSWORD,
         ]);
-        let mut delivery = Delivery::new(&mut stream);
-        delivery.send(estbl_req).await.unwrap();
-        let data = delivery.recv::<EstablishResponse>().await.unwrap();
 
-        assert_ne!(*data.method(), method::NO_ACCEPTABLE_METHODS);
+        stream.write_all(&establish_request.serialize()?).await?;
 
-        println!("{data:?}");
+        let mut buf = Vec::with_capacity(50);
+        stream.read_buf(&mut buf).await?;
+        let establish_response = EstablishResponse::deserialize(&buf)?;
+
+        assert_ne!(establish_response.method, method::NO_ACCEPTABLE_METHODS);
+
+        println!("{establish_request:?}\n{establish_response:?}");
+
+        Ok(())
+    }
+
+    async fn server_request_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
+        let listener = TcpListener::bind("127.0.0.1:8080").await?;
+
+        let listener_handeler = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::with_capacity(15);
+            assert!(socket.read_buf(&mut buf).await.unwrap() > 0);
+            assert_eq!(&buf, "secret_key".as_bytes());
+            socket.write_all("secret_reponse".as_bytes()).await.unwrap();
+            true
+        });
 
         let request = Request::new(command::CONNECT, addr_type::IP_V4, &[127, 0, 0, 1], 8080);
-        delivery.send::<Request>(request).await.unwrap();
-        let data = delivery.recv::<Reply>().await.unwrap();
+        stream.write_all(&request.serialize()?).await?;
 
-        println!("{data:?}");
+        let mut buf = Vec::with_capacity(50);
+        stream.read_buf(&mut buf).await?;
+        let reply = Reply::deserialize(&buf)?;
+        
+        assert_eq!(reply.rep, reply_opt::SUCCEEDED);
+        println!("{request:?}\n{reply:?}");
 
-        hdl.abort();
-        time::sleep(Duration::from_secs(1)).await;
-        assert!(hdl.is_finished());
+        stream.write_all("secret_key".as_bytes()).await?;
+        let mut secret_reponse = Vec::with_capacity(20);
+        stream.read_buf(&mut secret_reponse).await?;
+        println!("secret_response = {}", std::str::from_utf8(&secret_reponse)?);
+
+        assert!(listener_handeler.await?);
+        Ok(())
     }
 
     #[tokio::test]
-    #[ignore = "not running curl"]
     async fn server_curl_test() {
-        use std::process::Command;
-        let server = Server::new("127.0.0.1:1082", &[method::NO_AUTHENTICATION_REQUIRED]).unwrap();
-        let _addr = server.addr;
-
-        let hdl = tokio::spawn(async move { server.start().await.unwrap() });
-
-        time::sleep(Duration::from_secs(2)).await;
-
+        use tokio::process::Command;
+        let (_, handler) = server_run("127.0.0.1:1081").await;
+        
         let cmd = Command::new("/bin/curl")
-            .args(&["-v", "--socks5", "localhost:1082", "google.com"])
+            .args(["--socks5", "localhost:1081", "google.com"])
             .output()
+            .await
             .unwrap();
+        
+        assert!(cmd.status.success());
 
-        println!(
-            "OUTPUT = {out:?} | {err}",
-            out = cmd.stdout,
-            err = std::str::from_utf8(&cmd.stderr).unwrap()
-        );
-
-        hdl.abort();
+        handler.abort();
         time::sleep(Duration::from_secs(1)).await;
-        assert!(hdl.is_finished());
+        assert!(handler.is_finished());
     }
 }
