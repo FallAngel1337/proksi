@@ -19,18 +19,31 @@ pub mod command {
     pub const UDP_ASSOCIATE: u8 = 0x3;
 }
 
+/// 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Request<'a> {
-    version: u8,
-    cmd: u8,
-    rsv: u8, // reserved, always 0x0
-    atyp: u8,
-    dst_addr: &'a [u8],
-    dst_port: u16,
+    /// protocol version (0x5)
+    pub version: u8,
+
+    /// command
+    pub cmd: u8,
+
+    /// RESERVED
+    pub rsv: u8,
+
+    /// address type
+    pub atyp: u8,
+
+    ///  desired destination address
+    pub dst_addr: &'a [u8],
+
+    /// desired destination port in network octet order
+    pub dst_port: u16,
 }
 
 #[allow(unused)]
 impl<'a> Request<'a> {
+    /// Creates a new request (client-only)
     pub fn new(cmd: u8, atyp: u8, dst_addr: &'a [u8], dst_port: u16) -> Self {
         Self {
             version: SOCKS_VERSION,
@@ -40,18 +53,6 @@ impl<'a> Request<'a> {
             dst_addr,
             dst_port,
         }
-    }
-
-    pub fn command(&self) -> u8 {
-        self.cmd
-    }
-
-    pub fn addr_type(&self) -> u8 {
-        self.atyp
-    }
-
-    pub fn socket_addr(&self) -> (&[u8], u16) {
-        (self.dst_addr, self.dst_port)
     }
 }
 

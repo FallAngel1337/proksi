@@ -17,18 +17,31 @@ pub mod reply_opt {
     pub const ADDRESS_TYPE_NOT_SUPPORTED: u8 = 0x8;
 }
 
+/// The reply response struct (server-only)
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Reply<'a> {
-    version: u8,
-    rep: u8,
-    rsv: u8,
-    atyp: u8,
-    bnd_addr: &'a [u8],
-    bnd_port: u16,
+    /// protocol version (0x5)
+    pub version: u8,
+
+    /// reply field
+    pub rep: u8,
+
+    /// RESERVED
+    pub rsv: u8,
+    
+    /// ddress type
+    pub atyp: u8,
+
+    ///  server bound address
+    pub bnd_addr: &'a [u8],
+
+    /// server bound port in network octet order
+    pub bnd_port: u16,
 }
 
 #[allow(unused)]
 impl<'a> Reply<'a> {
+    /// Creates a new reply response
     pub fn new(rep: u8, atyp: u8, bnd_addr: &'a [u8], bnd_port: u16) -> Self {
         Self {
             version: SOCKS_VERSION,
@@ -38,18 +51,6 @@ impl<'a> Reply<'a> {
             bnd_addr,
             bnd_port,
         }
-    }
-
-    pub fn reply(&self) -> u8 {
-        self.rep
-    }
-
-    pub fn addr_type(&self) -> u8 {
-        self.atyp
-    }
-
-    pub fn socket_addr(&self) -> (&[u8], u16) {
-        (self.bnd_addr, self.bnd_port)
     }
 }
 

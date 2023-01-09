@@ -13,34 +13,29 @@ pub mod method {
     pub const NO_ACCEPTABLE_METHODS: u8 = 0xff;
 }
 
-/// The REQUEST packet to establish the connection
+/// The request to establish the connection (client-only)
 #[derive(Debug, Clone)]
-pub struct EstablishRequest {
+pub struct EstablishRequest<'a> {
     version: u8,
     nmethods: u8,
-    methods: Vec<u8>,
+    methods: &'a [u8],
 }
 
-/// The RESPONSE packet to establish the connection
+/// The RESPONSE packet to establish the connection (server-only)
 #[derive(Debug, Clone)]
 pub struct EstablishResponse {
     version: u8,
     method: u8,
 }
 
-impl EstablishRequest {
+impl<'a> EstablishRequest<'a> {
     /// Constructs a new connection establish REQUEST
-    pub fn new(methods: &[u8]) -> Self {
+    pub fn new(methods: &'a [u8]) -> Self {
         Self {
             version: SOCKS_VERSION,
             nmethods: methods.len() as u8,
-            methods: methods.to_vec(),
+            methods,
         }
-    }
-
-    /// `methods` field getter
-    pub fn methods(&self) -> &[u8] {
-        &self.methods
     }
 }
 
@@ -52,14 +47,9 @@ impl EstablishResponse {
             method,
         }
     }
-
-    /// `method` field getter
-    pub fn method(&self) -> &u8 {
-        &self.method
-    }
 }
 
-impl<'s> Sendible<'s> for EstablishRequest {
+impl<'s> Sendible<'s> for EstablishRequest<'s> {
     fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.nmethods];
         data.extend(self.methods.iter().cloned());
@@ -67,7 +57,7 @@ impl<'s> Sendible<'s> for EstablishRequest {
     }
 
     fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
-        let (version, nmethods, methods) = (data[0], data[1], data[1..].to_vec());
+        let (version, nmethods, methods) = (data[0], data[1], &data[1..]);
 
         Ok(Self {
             version,
@@ -82,7 +72,7 @@ impl<'s> Sendible<'s> for EstablishResponse {
         Ok(vec![self.version, self.method])
     }
 
-    fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
+    fn deserialize(data: &[u8]) -> std::io::Result<Self> {
         let (version, method) = (data[0], data[1]);
         Ok(Self { version, method })
     }
