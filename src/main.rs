@@ -3,6 +3,8 @@ mod server;
 use socks_rs::establish::method;
 use std::env;
 
+use crate::server::User;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Aad a decent argument parser
@@ -26,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     println!("Listening at {addr} ...");
-    server::Server::new(&addr, &auth)?.start().await?;
+    server::Server::new(&addr, &auth, Some(&[User::new("fall", "pass")]))?.start().await?;
 
     Ok(())
 }
