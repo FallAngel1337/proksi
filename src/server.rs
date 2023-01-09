@@ -6,8 +6,7 @@ use socks_rs::{
     establish::{method, EstablishRequest, EstablishResponse},
     reply::{reply_opt, Reply},
     request::{addr_type, command, Request},
-    Sendible,
-    SOCKS_VERSION,
+    Sendible, SOCKS_VERSION,
 };
 use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::{
@@ -58,18 +57,20 @@ impl<'a> Server<'a> {
     }
 
     // TODO: implement the user and password authentication if selected
-    async fn handle_establish(
-        stream: &mut TcpStream,
-        methods: &[u8],
-    ) -> io::Result<()> {
-        
+    async fn handle_establish(stream: &mut TcpStream, methods: &[u8]) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
 
-        if methods.iter().any(|x| establish_request.methods.contains(x)) {
+        if methods
+            .iter()
+            .any(|x| establish_request.methods.contains(x))
+        {
             if let Some(&val) = methods.iter().max_by_key(|&&x| x) {
-                stream.write_all(&establish_request.serialize()?).await.unwrap();
+                stream
+                    .write_all(&establish_request.serialize()?)
+                    .await
+                    .unwrap();
             }
         } else {
             stream

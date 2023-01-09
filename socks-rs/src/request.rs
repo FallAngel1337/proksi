@@ -19,7 +19,7 @@ pub mod command {
     pub const UDP_ASSOCIATE: u8 = 0x3;
 }
 
-/// 
+///
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Request<'a> {
     /// protocol version (0x5)

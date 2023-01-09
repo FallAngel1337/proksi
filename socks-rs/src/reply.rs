@@ -28,7 +28,7 @@ pub struct Reply<'a> {
 
     /// RESERVED
     pub rsv: u8,
-    
+
     /// address type
     pub atyp: u8,
 
