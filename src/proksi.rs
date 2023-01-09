@@ -1,7 +1,3 @@
-//! # Server
-//! SOCKS Server releated module
-//! TODO: Add a better description
-
 use socks_rs::{
     establish::{method, EstablishRequest, EstablishResponse},
     reply::{reply_opt, Reply},
@@ -13,27 +9,61 @@ use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+use std::env;
 
-/// The `Server` struct that holds the
-/// SOCKS Server configuration
+fn help() -> ! {
+    println!("proksi 0.1.0 - A rust proxy server");
+    println!("Usage: ./proksi <addr>:<port> <auth>\n");
+    println!("Arguments:");
+    println!("<addr:port>\tThe address and port the proxy will bind");
+    println!("<auth>     \tSupported authentication methods string (\"noauth,gssapi,userpasswd\")");
+    std::process::exit(0);
+}
+
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Server<'a> {
     version: u8,
-    supported_methods: &'a [u8],
+    auth: &'a [u8],
     addr: SocketAddr,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut args = env::args().skip(1);
+
+    let addr = args
+        .next()
+        .unwrap_or_else(|| help());
+
+    let auth = args
+        .next()
+        .unwrap_or_else(|| help())
+        .split(',')
+        .map(|auth| match auth.to_ascii_lowercase().trim() {
+            "noauth" => method::NO_AUTHENTICATION_REQUIRED,
+            "gssapi" => method::GSSAPI,
+            "userpasswd" => method::USERNAME_PASSWORD,
+            _ => panic!("Invalid method")
+        }).collect::<Vec<_>>();
+
+
+    println!("Listening at {addr} ...");
+    Server::new(&addr, &auth)?.start().await?;
+
+    Ok(())
 }
 
 impl<'a> Server<'a> {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, supported_methods: &'a [u8]) -> io::Result<Self>
+    pub fn new<S>(addr: S, auth: &'a [u8]) -> io::Result<Self>
     where
         S: ToSocketAddrs,
     {
         let addr = addr.to_socket_addrs()?.next().unwrap();
         Ok(Self {
             version: SOCKS_VERSION,
-            supported_methods,
+            auth,
             addr,
         })
     }
@@ -45,7 +75,7 @@ impl<'a> Server<'a> {
         loop {
             let (mut stream, _) = listener.accept().await?;
 
-            Self::handle_establish(&mut stream, self.supported_methods).await?;
+            Self::handle_establish(&mut stream, self.auth).await?;
             Self::handle_requests(&mut stream).await?;
         }
     }
