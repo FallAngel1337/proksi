@@ -21,11 +21,9 @@ features = [
 [dev-dependencies.tokio]
 version = "1.23.0"
 features = [
-    "time"
+    "time",
+    "process"
 ]
-
-[features]
-tokio = []
 
 [workspace]
 members = [
