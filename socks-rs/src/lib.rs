@@ -5,10 +5,9 @@
 //! TODO: Add a better description and items
 
 /// The SOCKS protocol version
-pub(crate) const SOCKS_VERSION: u8 = 0x5;
+pub const SOCKS_VERSION: u8 = 0x5;
 
 pub mod establish;
-mod reply;
-mod request;
-pub mod server;
-mod utils;
+pub mod reply;
+pub mod request;
+pub mod utils;
