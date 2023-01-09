@@ -12,4 +12,5 @@ pub const SOCKS_VERSION: u8 = 0x5;
 pub mod establish;
 pub mod reply;
 pub mod request;
+pub mod auth;
 pub use utils::Sendible;
