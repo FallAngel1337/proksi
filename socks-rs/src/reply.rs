@@ -2,7 +2,7 @@
 //! Module for server replies/reponses
 
 use crate::request::addr_type;
-use crate::{utils::Sendible, SOCKS_VERSION};
+use crate::{Sendible, SOCKS_VERSION};
 
 #[allow(missing_docs, unused)]
 pub mod reply_opt {

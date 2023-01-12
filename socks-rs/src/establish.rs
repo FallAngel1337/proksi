@@ -2,8 +2,7 @@
 //! This moodule contains the struct that describes the connection establish request
 //! that need to be sent to the SOCKS server.
 
-use crate::utils::Sendible;
-use crate::SOCKS_VERSION;
+use crate::{Sendible, SOCKS_VERSION};
 
 #[allow(missing_docs)]
 pub mod method {
