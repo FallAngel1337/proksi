@@ -137,10 +137,9 @@ impl<'a> Server<'a> {
         let (atyp, ip) = ip_octs!(socket_addr);
         let port = socket_addr.port();
 
-        let reply = Reply::new(reply_opt::SUCCEEDED, atyp, &ip, port);
-        stream.write_all(&reply.serialize()?).await?;
-
         let (dst_ip, dst_port) = (request.dst_addr, request.dst_port);
+
+        let mut reply = Reply::new(reply_opt::SUCCEEDED, atyp, &ip, port);
 
         let dst_socket = match request.atyp {
             addr_type::IP_V4 => SocketAddr::from((
@@ -166,10 +165,14 @@ impl<'a> Server<'a> {
                 TryInto::<[u8; 16]>::try_into(dst_ip).unwrap(),
                 dst_port,
             )),
-            atyp => error!("Invalid address type ({atyp})")
+            atyp => {
+                reply.rep = reply_opt::ADDRESS_TYPE_NOT_SUPPORTED;
+                stream.write_all(&reply.serialize()?).await?;
+                error!("ADDRESS TYPE NOT SUPPORTED ({atyp})")
+            }
         };
 
-        println!("GOT {request:?}");
+        stream.write_all(&reply.serialize()?).await?;
 
         let mut dst_stream = TcpStream::connect(dst_socket).await?;
 
