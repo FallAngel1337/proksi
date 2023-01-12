@@ -71,7 +71,11 @@ impl<'s> Sendible<'s> for Reply<'s> {
             addr_type::IP_V4 => 8_usize,
             addr_type::DOMAIN_NAME => panic!("Can't do DOMAINNAME yet"),
             addr_type::IP_V6 => 20_usize,
-            _ => panic!("Invalid address type"),
+            atyp => return Err(
+                    std::io::Error::new(
+                        std::io::ErrorKind::ConnectionAborted,
+                        format!("Invalid address type {atyp}")
+                )),
         };
 
         let bnd_addr = &data[4..offset];
