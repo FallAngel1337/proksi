@@ -11,32 +11,59 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct User<'a> {
-    username: &'a str,
-    password: &'a str
+#[macro_use]
+mod macros {
+    macro_rules! ip_octs {
+        ($sock:expr) => {
+            {
+                match $sock.ip() {
+                    std::net::IpAddr::V4(ip) => ip.octets().to_vec(),
+                    std::net::IpAddr::V6(ip) => ip.octets().to_vec(),
+                }
+            }
+        };
+    }
+
+    macro_rules! error {
+        ($($msg:tt)*) => {
+            return Err(
+                std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    format_args!($($msg)*).to_string()
+            ))
+        };
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct User {
+    username: String,
+    password: String
 }
 
 // TODO: Parse from a config file
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Server<'a> {
     version: u8,
     auth: &'a [u8],
     addr: SocketAddr,
-    allowed_users: Option<&'a [User<'a>]>
+    allowed_users: Option<Vec<User>>
 }
 
 #[allow(missing_docs, unused)]
-impl<'a> User<'a> {
-    pub fn new(username: &'a str, password: &'a str) -> Self {
-        Self { username, password }
+impl User {
+    pub fn new(username: &str, password: &str) -> Self {
+        Self {
+            username: username.to_string(),
+            password: password.to_string()
+        }
     }
 }
 
 impl<'a> Server<'a> {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, auth: &'a [u8], allowed_users: Option<&'a [User<'a>]>) -> io::Result<Self>
+    pub fn new<S>(addr: S, auth: &'a [u8], allowed_users: Option<Vec<User>>) -> io::Result<Self>
     where
         S: ToSocketAddrs,
     {
@@ -60,61 +87,34 @@ impl<'a> Server<'a> {
             self.handle_requests(&mut stream).await?;
         }
     }
-
-    // TODO: refactor this later
+    
     async fn handle_establish(&self, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
 
-        if self.auth
-            .iter()
-            .any(|x| establish_request.methods.contains(x))
-        {
-            if let Some(&method) = self.auth.iter().max_by_key(|&&x| x) {
-                stream
-                    .write_all(&EstablishResponse::new(method).serialize()?)
-                    .await
-                    .unwrap();
+        let method = self.auth.iter().max_by_key(|&k| establish_request.methods.contains(k));
 
-                match method {
-                    method::NO_AUTHENTICATION_REQUIRED => (),
-                    method::USERNAME_PASSWORD => if let Some(list) = self.allowed_users {
-                        let mut buf = Vec::with_capacity(100);
-                        stream.read_buf(&mut buf).await?;
-                        let auth_request = AuthRequest::deserialize(&buf)?;
-
-                        let user = User {
-                            username: std::str::from_utf8(auth_request.uname).unwrap(),
-                            password: std::str::from_utf8(auth_request.passwd).unwrap()
-                        };
-
-                        if list.contains(&user) {
-                            let response = AuthResponse::new(0x0).serialize()?;
-                            stream.write_all(&response).await?;
-                        } else {
-                            let response = AuthResponse::new(0x1).serialize()?;
-                            stream.write_all(&response).await?;
-                            
-                            return Err(io::Error::new(
-                                io::ErrorKind::ConnectionAborted,
-                                "USER NOT FOUND",
-                            ));
-                        };
-
-                    },
-                    _ => ()
-                }
-            }
+        let establish_method = if let Some(&method) = method {
+            method
         } else {
-            stream
-                .write_all(&EstablishResponse::new(method::NO_ACCEPTABLE_METHODS).serialize()?)
-                .await?;
-            return Err(io::Error::new(
-                io::ErrorKind::ConnectionAborted,
-                "NO ACCEPTABLE METHODS",
-            ));
-        }
+            method::NO_ACCEPTABLE_METHODS
+        };
+
+        stream
+            .write_all(&EstablishResponse::new(establish_method).serialize()?)
+            .await
+            .unwrap();
+
+        match establish_method {
+            method::USERNAME_PASSWORD => self.auth_request(
+                stream, 
+                self.allowed_users.as_ref().unwrap()
+            ).await?,
+            method::GSSAPI => panic!("No support for GSSAPI yet"),
+            method::NO_ACCEPTABLE_METHODS => error!("NO ACCEPTABLE METHODS"),
+            _ => ()
+        };
 
         Ok(())
     }
@@ -124,60 +124,80 @@ impl<'a> Server<'a> {
         stream.read_buf(&mut buf).await?;
         let request = Request::deserialize(&buf)?;
 
-        let socket_addr = stream.peer_addr()?;
-        let ip = match socket_addr.ip() {
-            std::net::IpAddr::V4(ip) => ip.octets().to_vec(),
-            std::net::IpAddr::V6(ip) => ip.octets().to_vec(),
-        };
-        let port = socket_addr.port();
-
         match request.cmd {
-            command::CONNECT => {
-                let reply = Reply::new(reply_opt::SUCCEEDED, request.atyp, &ip, port);
-                stream.write_all(&reply.serialize()?).await?;
-
-                let (dst_ip, dst_port) = (request.dst_addr, request.dst_port);
-
-                let mut dst_stream = match request.atyp {
-                    addr_type::IP_V4 => TcpStream::connect(SocketAddr::from((
-                        TryInto::<[u8; 4]>::try_into(dst_ip).unwrap(),
-                        dst_port,
-                    )))
-                    .await
-                    .unwrap(),
-                    addr_type::DOMAIN_NAME => panic!("No DOMAINNAME method yet"),
-                    addr_type::IP_V6 => TcpStream::connect(SocketAddr::from((
-                        TryInto::<[u8; 16]>::try_into(dst_ip).unwrap(),
-                        dst_port,
-                    )))
-                    .await
-                    .unwrap(),
-                    _ => panic!("Invalid address type"),
-                };
-
-                let (mut dst_read_half, mut dst_write_half) = dst_stream.split();
-                let (mut src_read_half, mut src_write_half) = stream.split();
-
-                loop {
-                    tokio::select! {
-                        _ = async {
-                            let mut buf = Vec::with_capacity(512);
-                            src_read_half.read_buf(&mut buf).await.unwrap();
-                            dst_write_half.write_all(&buf).await.unwrap();
-                        } => { }
-
-                        _ = async {
-                            let mut buf = Vec::with_capacity(512);
-                            dst_read_half.read_buf(&mut buf).await.unwrap();
-                            src_write_half.write_all(&buf).await.unwrap();
-                        } => { }
-                    }
-                }
-            }
+            command::CONNECT => self.connect_request(stream, request).await?,
             command::BIND => panic!("No BIND command!"),
             command::UDP_ASSOCIATE => panic!("No UDP command!"),
-            _ => panic!("Command {cmd} not available!", cmd = request.cmd),
+            cmd => error!("Command {cmd} not available!"),
         };
+
+        Ok(())
+    }
+
+    async fn connect_request(&self, stream: &mut TcpStream, request: Request<'_>) -> io::Result<()>{
+        let socket_addr = stream.local_addr()?;
+        let ip = ip_octs!(socket_addr);
+        let port = socket_addr.port();
+
+        let reply = Reply::new(reply_opt::SUCCEEDED, request.atyp, &ip, port);
+        stream.write_all(&reply.serialize()?).await?;
+
+        let (dst_ip, dst_port) = (request.dst_addr, request.dst_port);
+
+        let dst_socket = match request.atyp {
+            addr_type::IP_V4 => SocketAddr::from((
+                TryInto::<[u8; 4]>::try_into(dst_ip).unwrap(),
+                dst_port
+            )),
+            addr_type::DOMAIN_NAME => panic!("No DOMAINNAME method yet"),
+            addr_type::IP_V6 => SocketAddr::from((
+                TryInto::<[u8; 16]>::try_into(dst_ip).unwrap(),
+                dst_port,
+            )),
+            atyp => error!("Invalid address type ({atyp})")
+        };
+
+        let mut dst_stream = TcpStream::connect(dst_socket).await?;
+
+        let (mut dst_read_half, mut dst_write_half) = dst_stream.split();
+        let (mut src_read_half, mut src_write_half) = stream.split();
+
+        loop {
+            tokio::select! {
+                _ = async {
+                    let mut buf = Vec::with_capacity(512);
+                    src_read_half.read_buf(&mut buf).await.unwrap();
+                    dst_write_half.write_all(&buf).await.unwrap();
+                } => { }
+
+                _ = async {
+                    let mut buf = Vec::with_capacity(512);
+                    dst_read_half.read_buf(&mut buf).await.unwrap();
+                    src_write_half.write_all(&buf).await.unwrap();
+                } => { }
+            }
+        }
+    }
+
+    async fn auth_request(&self, stream: &mut TcpStream, users_list: &[User]) -> io::Result<()> {
+        use std::str;
+
+        let mut buf = Vec::with_capacity(100);
+        stream.read_buf(&mut buf).await?;
+
+        let auth_request = AuthRequest::deserialize(&buf)?;
+
+        let user = User::new(str::from_utf8(auth_request.uname).unwrap(), str::from_utf8(auth_request.passwd).unwrap());
+
+        let response = AuthResponse::new(!users_list.contains(&user) as u8);
+
+        stream.write_all(&response.serialize()?).await?;
+
+        if response.status != 0 {
+            error!("USER NOT FOUND")
+        }
+
+        Ok(())
     }
 }
 
@@ -276,6 +296,34 @@ mod tests {
         
         let cmd = Command::new("/bin/curl")
             .args(["--socks5", "localhost:1081", "google.com"])
+            .output()
+            .await
+            .unwrap();
+        
+        assert!(cmd.status.success());
+
+        handler.abort();
+        time::sleep(Duration::from_secs(1)).await;
+        assert!(handler.is_finished());
+    }
+
+    #[tokio::test]
+    async fn server_curl_userpass_test() {
+        use tokio::process::Command;
+
+        let (username, password ) = ("admin", "admin");
+        let user = User::new(username, password);
+
+        let server = Server::new("127.0.0.1:1082", &[method::USERNAME_PASSWORD], Some(vec![user])).unwrap();
+
+        let handler = tokio::spawn(async move {
+                server.start().await.unwrap()
+            }
+        );
+        time::sleep(Duration::from_secs(2)).await;
+        
+        let cmd = Command::new("/bin/curl")
+            .args(["--proxy", "socks5://admin:admin@localhost:1082", "google.com"])
             .output()
             .await
             .unwrap();
