@@ -57,6 +57,11 @@ impl<'a> Request<'a> {
 impl<'s> Sendible<'s> for Request<'s> {
     fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.cmd, self.rsv, self.atyp];
+        
+        if self.atyp == addr_type::DOMAIN_NAME {
+            data.push(self.dst_addr.len() as u8);
+        }
+        
         data.extend(self.dst_addr);
         data.extend([
             ((self.dst_port >> 8) & 0xff) as u8,
@@ -72,7 +77,11 @@ impl<'s> Sendible<'s> for Request<'s> {
             addr_type::IP_V4 => (4, 8),
             addr_type::DOMAIN_NAME => (5, 5 + data[4] as usize),
             addr_type::IP_V6 => (4, 20),
-            _ => panic!("Invalid address type"),
+            atyp => return Err(
+                std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    format!("Invalid address type {atyp}")
+            )),
         };
 
         let dst_addr = &data[start..offset];
@@ -114,11 +123,6 @@ mod test {
         let serialized = request.serialize().unwrap();
         let from_bytes = Request::deserialize(&serialized).unwrap();
         
-        assert_eq!(request.version, from_bytes.version);
-        assert_eq!(request.cmd, from_bytes.cmd);
-        assert_eq!(request.rsv, from_bytes.rsv);
-        assert_eq!(request.atyp, from_bytes.atyp);
-        assert_eq!(&request.dst_addr[1..], from_bytes.dst_addr);
-        assert_eq!(request.dst_port, from_bytes.dst_port);
+        assert_eq!(request, from_bytes);
     }
 }

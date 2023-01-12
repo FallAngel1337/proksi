@@ -56,6 +56,11 @@ impl<'a> Reply<'a> {
 impl<'s> Sendible<'s> for Reply<'s> {
     fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.rep, self.rsv, self.atyp];
+        
+        if self.atyp == addr_type::DOMAIN_NAME {
+            data.push(self.bnd_addr.len() as u8);
+        }
+        
         data.extend(self.bnd_addr);
         data.extend([
             ((self.bnd_port >> 8) & 0xff) as u8,
@@ -67,18 +72,18 @@ impl<'s> Sendible<'s> for Reply<'s> {
     fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, rep, rsv, atyp) = (data[0], data[1], data[2], data[3]);
 
-        let offset = match atyp {
-            addr_type::IP_V4 => 8_usize,
-            addr_type::DOMAIN_NAME => panic!("Can't do DOMAINNAME yet"),
-            addr_type::IP_V6 => 20_usize,
+        let (start, offset) = match atyp {
+            addr_type::IP_V4 => (4, 8),
+            addr_type::DOMAIN_NAME => (5, 5 + data[4] as usize),
+            addr_type::IP_V6 => (4, 20),
             atyp => return Err(
-                    std::io::Error::new(
-                        std::io::ErrorKind::ConnectionAborted,
-                        format!("Invalid address type {atyp}")
-                )),
+                std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    format!("Invalid address type {atyp}")
+            )),
         };
 
-        let bnd_addr = &data[4..offset];
+        let bnd_addr = &data[start..offset];
         let bnd_port = &data[offset..];
         let bnd_port = (bnd_port[0] as u16) << 8 | (bnd_port[1] as u16);
 
