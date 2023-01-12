@@ -93,13 +93,9 @@ impl<'a> Server<'a> {
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
 
-        let method = self.auth.iter().max_by_key(|&k| establish_request.methods.contains(k));
+        let method = self.auth.iter().max_by_key(|&k| establish_request.methods.contains(k)).copied();
 
-        let establish_method = if let Some(&method) = method {
-            method
-        } else {
-            method::NO_ACCEPTABLE_METHODS
-        };
+        let establish_method = method.unwrap_or(method::NO_ACCEPTABLE_METHODS);
 
         stream
             .write_all(&EstablishResponse::new(establish_method).serialize()?)
