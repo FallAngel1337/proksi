@@ -17,8 +17,8 @@ mod macros {
         ($sock:expr) => {
             {
                 match $sock.ip() {
-                    std::net::IpAddr::V4(ip) => ip.octets().to_vec(),
-                    std::net::IpAddr::V6(ip) => ip.octets().to_vec(),
+                    std::net::IpAddr::V4(ip) => (addr_type::IP_V4, ip.octets().to_vec()),
+                    std::net::IpAddr::V6(ip) => (addr_type::IP_V6, ip.octets().to_vec()),
                 }
             }
         };
@@ -134,10 +134,10 @@ impl<'a> Server<'a> {
 
     async fn connect_request(&self, stream: &mut TcpStream, request: Request<'_>) -> io::Result<()>{
         let socket_addr = stream.local_addr()?;
-        let ip = ip_octs!(socket_addr);
+        let (atyp, ip) = ip_octs!(socket_addr);
         let port = socket_addr.port();
 
-        let reply = Reply::new(reply_opt::SUCCEEDED, request.atyp, &ip, port);
+        let reply = Reply::new(reply_opt::SUCCEEDED, atyp, &ip, port);
         stream.write_all(&reply.serialize()?).await?;
 
         let (dst_ip, dst_port) = (request.dst_addr, request.dst_port);
@@ -147,13 +147,29 @@ impl<'a> Server<'a> {
                 TryInto::<[u8; 4]>::try_into(dst_ip).unwrap(),
                 dst_port
             )),
-            addr_type::DOMAIN_NAME => panic!("No DOMAINNAME method yet"),
+            #[cfg(feature = "dns-lookup")]
+            addr_type::DOMAIN_NAME => {
+                let host = std::str::from_utf8(dst_ip).unwrap();
+                let resolved_list = dns_lookup::lookup_host(host)
+                    .unwrap();
+
+                let resolved = resolved_list.first().unwrap();
+                format!("{resolved}:{dst_port}")
+                    .to_socket_addrs()
+                    .unwrap()
+                    .next()
+                    .unwrap()
+            },
+            #[cfg(not(feature = "dns-lookup"))]
+            addr_type::DOMAIN_NAME => panic!("DOMAIN_NAME is not available"),
             addr_type::IP_V6 => SocketAddr::from((
                 TryInto::<[u8; 16]>::try_into(dst_ip).unwrap(),
                 dst_port,
             )),
             atyp => error!("Invalid address type ({atyp})")
         };
+
+        println!("GOT {request:?}");
 
         let mut dst_stream = TcpStream::connect(dst_socket).await?;
 
@@ -214,16 +230,41 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn main_test() {
+    async fn server_request() {
         let (addr, handler) = default_server_run(None).await;
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        
+        assert!(server_establish_test(&mut stream).await.is_ok());
+        assert!(server_request_test(&mut stream).await.is_ok());
+        
+        handler.abort();
+        time::sleep(Duration::from_secs(1)).await;
+        assert!(handler.is_finished());
+    }
+
+    #[tokio::test]
+    async fn server_request_domain() -> Result<(), Box<dyn std::error::Error>> {
+        let (addr, handler) = default_server_run(Some("127.0.0.1:1081")).await;
         let mut stream = TcpStream::connect(addr).await.unwrap();
 
         assert!(server_establish_test(&mut stream).await.is_ok());
-        assert!(server_request_test(&mut stream).await.is_ok());
+
+        let request = Request::new(command::CONNECT, addr_type::DOMAIN_NAME,
+             &[10, 103,111,111,103,108,101,46,99,111,109], 80);
+        stream.write_all(&request.serialize()?).await?;
+
+        let mut buf = Vec::with_capacity(50);
+        stream.read_buf(&mut buf).await?;
+        let reply = Reply::deserialize(&buf)?;
+
+        assert_eq!(reply.rep, reply_opt::SUCCEEDED);
+        println!("{request:?}\n{reply:?}");
 
         handler.abort();
         time::sleep(Duration::from_secs(1)).await;
         assert!(handler.is_finished());
+
+        Ok(())
     }
 
     async fn default_server_run(addr: Option<&str>) -> (SocketAddr, JoinHandle<()>) {
@@ -290,10 +331,10 @@ mod tests {
     #[tokio::test]
     async fn server_curl_test() {
         use tokio::process::Command;
-        let (_, handler) = default_server_run(Some("127.0.0.1:1081")).await;
+        let (_, handler) = default_server_run(Some("127.0.0.1:1082")).await;
         
         let cmd = Command::new("/bin/curl")
-            .args(["--socks5", "localhost:1081", "google.com"])
+            .args(["--socks5", "localhost:1082", "google.com"])
             .output()
             .await
             .unwrap();
@@ -312,7 +353,7 @@ mod tests {
         let (username, password ) = ("admin", "admin");
         let user = User::new(username, password);
 
-        let server = Server::new("127.0.0.1:1082", &[method::USERNAME_PASSWORD], Some(vec![user])).unwrap();
+        let server = Server::new("127.0.0.1:1083", &[method::USERNAME_PASSWORD], Some(vec![user])).unwrap();
 
         let handler = tokio::spawn(async move {
                 server.start().await.unwrap()
@@ -321,7 +362,7 @@ mod tests {
         time::sleep(Duration::from_secs(2)).await;
         
         let cmd = Command::new("/bin/curl")
-            .args(["--proxy", "socks5://admin:admin@localhost:1082", "google.com"])
+            .args(["--proxy", "socks5://admin:admin@localhost:1083", "google.com"])
             .output()
             .await
             .unwrap();

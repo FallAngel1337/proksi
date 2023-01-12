@@ -18,6 +18,10 @@ features = [
     "macros"
 ]
 
+[dependencies.dns-lookup]
+version = "1.0.8"
+optional = true
+
 [dev-dependencies.tokio]
 version = "1.23.0"
 features = [ "time", "process" ]
@@ -26,3 +30,6 @@ features = [ "time", "process" ]
 members = [
     "socks-rs"
 ]
+
+[features]
+default = ["dns-lookup"]
