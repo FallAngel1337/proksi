@@ -68,16 +68,18 @@ impl<'s> Sendible<'s> for Request<'s> {
     fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, cmd, rsv, atyp) = (data[0], data[1], data[2], data[3]);
 
-        let offset = match atyp {
-            addr_type::IP_V4 => 8_usize,
-            addr_type::DOMAIN_NAME => panic!("Can't do DOMAINNAME yet"),
-            addr_type::IP_V6 => 20_usize,
+        let (start, offset) = match atyp {
+            addr_type::IP_V4 => (4, 8),
+            addr_type::DOMAIN_NAME => (5, 5 + data[4] as usize),
+            addr_type::IP_V6 => (4, 20),
             _ => panic!("Invalid address type"),
         };
 
-        let dst_addr = &data[4..offset];
+        let dst_addr = &data[start..offset];
         let dst_port = &data[offset..];
         let dst_port = (dst_port[0] as u16) << 8 | (dst_port[1] as u16);
+
+        println!("dst_addr = {dst_addr:?}");
 
         Ok(Self {
             version,
@@ -104,5 +106,19 @@ mod test {
         let bytes = [5, 1, 0, 1, 142, 250, 219, 14, 0, 80];
         let request = Request::deserialize(&bytes).unwrap();
         assert_eq!(request, Request::new(1, 1, &[142, 250, 219, 14], 80))
+    }
+
+    #[test]
+    fn domain_request_serr_deser() {
+        let request = Request::new(command::CONNECT, addr_type::DOMAIN_NAME, &[6, 98, 97, 116, 97, 116, 97], 1080);
+        let serialized = request.serialize().unwrap();
+        let from_bytes = Request::deserialize(&serialized).unwrap();
+        
+        assert_eq!(request.version, from_bytes.version);
+        assert_eq!(request.cmd, from_bytes.cmd);
+        assert_eq!(request.rsv, from_bytes.rsv);
+        assert_eq!(request.atyp, from_bytes.atyp);
+        assert_eq!(&request.dst_addr[1..], from_bytes.dst_addr);
+        assert_eq!(request.dst_port, from_bytes.dst_port);
     }
 }
