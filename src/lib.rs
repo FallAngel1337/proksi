@@ -215,7 +215,7 @@ mod tests {
 
     #[tokio::test]
     async fn main_test() {
-        let (addr, handler) = server_run("127.0.0.1:1080").await;
+        let (addr, handler) = default_server_run(None).await;
         let mut stream = TcpStream::connect(addr).await.unwrap();
 
         assert!(server_establish_test(&mut stream).await.is_ok());
@@ -226,8 +226,8 @@ mod tests {
         assert!(handler.is_finished());
     }
 
-    async fn server_run(addr: impl ToSocketAddrs) -> (SocketAddr, JoinHandle<()>) {
-        let server = Server::new(addr, &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
+    async fn default_server_run(addr: Option<&str>) -> (SocketAddr, JoinHandle<()>) {
+        let server = Server::new(addr.unwrap_or("127.0.0.1:1080"), &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
         let addr = server.addr;
         let handler = tokio::spawn(async move {
                 server.start().await.unwrap()
@@ -290,7 +290,7 @@ mod tests {
     #[tokio::test]
     async fn server_curl_test() {
         use tokio::process::Command;
-        let (_, handler) = server_run("127.0.0.1:1081").await;
+        let (_, handler) = default_server_run(Some("127.0.0.1:1081")).await;
         
         let cmd = Command::new("/bin/curl")
             .args(["--socks5", "localhost:1081", "google.com"])
