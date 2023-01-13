@@ -153,7 +153,7 @@ impl Server {
             command::CONNECT => self.connect_request(stream, request).await?,
             #[cfg(feature = "bind")]
             // Should I place here a `connect_request` before ??
-            command::BIND => self.bind_request(stream, request).await?,
+            command::BIND => self.bind_request(stream).await?,
             #[cfg(not(feature = "bind"))]
             command::BIND => panic!("No BIND command!"),
             command::UDP_ASSOCIATE => panic!("No UDP command!"),
@@ -206,41 +206,51 @@ impl Server {
 
         let mut dst_stream = TcpStream::connect(dst_socket).await?;
 
-        let (mut dst_read_half, mut dst_write_half) = dst_stream.split();
-        let (mut src_read_half, mut src_write_half) = stream.split();
+        pipe(stream, &mut dst_stream).await;
 
-        loop {
-            tokio::select! {
-                _ = async {
-                    let mut buf = Vec::with_capacity(512);
-                    src_read_half.read_buf(&mut buf).await.unwrap();
-                    dst_write_half.write_all(&buf).await.unwrap();
-                } => { }
-
-                _ = async {
-                    let mut buf = Vec::with_capacity(512);
-                    dst_read_half.read_buf(&mut buf).await.unwrap();
-                    src_write_half.write_all(&buf).await.unwrap();
-                } => { }
-            }
-        }
+        Ok(())
     }
 
     #[cfg(feature = "bind")]
-    async fn bind_request(&self, stream: &mut TcpStream, request: Request<'_>) -> io::Result<()> {
-        println!("bind_request = {request:?}");
-
+    async fn bind_request(&self, stream: &mut TcpStream) -> io::Result<()> {
         let socket_addr = stream.local_addr()?;
-        let _ip = socket_addr.ip();
+        let ip = socket_addr.ip();
         let (atyp, bnd_addr) = ip_octs!(socket_addr);
+        // TODO: random port
         let bnd_port = 17568;
 
-        // let bind_stream = TcpListener::bind((ip, bnd_port)).await?;
+        let bind_stream = TcpListener::bind((ip, bnd_port)).await?;
 
         let reply = Reply::new(reply_opt::SUCCEEDED, atyp, &bnd_addr, bnd_port);
         stream.write_all(&reply.serialize()?).await?;
 
+        let (mut socket, addr) = bind_stream.accept().await?;
+        println!("Got a BIND connection from {addr:?}");
+
+        pipe(stream, &mut socket).await;
+
         Ok(())
+    }
+}
+
+async fn pipe(src: &mut TcpStream, dst: &mut TcpStream) -> ! {
+    let (mut src_read_half, mut src_write_half) = src.split();
+    let (mut dst_read_half, mut dst_write_half) = dst.split();
+
+    loop {
+        tokio::select! {
+            _ = async {
+                let mut buf = Vec::with_capacity(512);
+                src_read_half.read_buf(&mut buf).await.unwrap();
+                dst_write_half.write_all(&buf).await.unwrap();
+            } => { }
+
+            _ = async {
+                let mut buf = Vec::with_capacity(512);
+                dst_read_half.read_buf(&mut buf).await.unwrap();
+                src_write_half.write_all(&buf).await.unwrap();
+            } => { }
+        }
     }
 }
 
@@ -284,6 +294,10 @@ mod tests {
         assert!(server_establish_test(&mut bind_stream).await.is_ok());
         assert!(server_bind_request_test(&mut bind_stream).await.is_ok());
         
+        let mut buf = Vec::with_capacity(50);
+        bind_stream.read_buf(&mut buf).await.unwrap();
+        println!("buf = {buf:?}");
+
         handler.abort();
         listener_handler.abort();
         time::sleep(Duration::from_secs(1)).await;
@@ -291,7 +305,6 @@ mod tests {
         assert!(listener_handler.is_finished());
     }
 
-    #[ignore]
     #[tokio::test]
     async fn server_request_domain() -> Result<(), Box<dyn std::error::Error>> {
         let (addr, handler) = default_server_run(Some("127.0.0.1:1081")).await;
@@ -360,6 +373,10 @@ mod tests {
 
         assert_eq!(reply.rep, reply_opt::SUCCEEDED);
         println!("BIND >> {bind_request:?}\n{reply:?}");
+
+        let mut conn = TcpStream::connect(SocketAddr::new(TryInto::<[u8; 4]>::try_into(reply.bnd_addr)?.into(), reply.bnd_port)).await?;
+
+        conn.write_all(b"batatabanana").await?;
 
         Ok(())
     }
