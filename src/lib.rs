@@ -112,10 +112,7 @@ impl Server {
             .unwrap();
 
         match establish_method {
-            method::USERNAME_PASSWORD => self.auth_request(
-                stream, 
-                self.allowed_users.as_ref().unwrap()
-            ).await?,
+            method::USERNAME_PASSWORD => self.auth_request(stream).await?,
             method::GSSAPI => panic!("No support for GSSAPI yet"),
             method::NO_ACCEPTABLE_METHODS => error!("NO ACCEPTABLE METHODS"),
             _ => ()
@@ -124,8 +121,10 @@ impl Server {
         self.request_handler(stream).await
     }
 
-    async fn auth_request(&self, stream: &mut TcpStream, users_list: &[User]) -> io::Result<()> {
+    async fn auth_request(&self, stream: &mut TcpStream) -> io::Result<()> {
         use std::str;
+
+        let users_list = self.allowed_users.as_ref().unwrap();
 
         let mut buf = Vec::with_capacity(100);
         stream.read_buf(&mut buf).await?;
