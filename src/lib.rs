@@ -289,14 +289,16 @@ mod tests {
         assert!(server_establish_test(&mut stream).await.is_ok());
         assert!(server_request_test(&mut stream).await.is_ok());
         
-        let mut bind_stream = TcpStream::connect(addr).await.unwrap();
+        #[cfg(feature = "bind")]
+        {
+            let mut bind_stream = TcpStream::connect(addr).await.unwrap();
+            assert!(server_establish_test(&mut bind_stream).await.is_ok());
+            assert!(server_bind_request_test(&mut bind_stream).await.is_ok());
+            let mut buf = Vec::with_capacity(50);
+            bind_stream.read_buf(&mut buf).await.unwrap();
+            println!("buf = {buf:?}");
+        }
         
-        assert!(server_establish_test(&mut bind_stream).await.is_ok());
-        assert!(server_bind_request_test(&mut bind_stream).await.is_ok());
-        
-        let mut buf = Vec::with_capacity(50);
-        bind_stream.read_buf(&mut buf).await.unwrap();
-        println!("buf = {buf:?}");
 
         handler.abort();
         listener_handler.abort();
@@ -362,7 +364,8 @@ mod tests {
 
         Ok(())
     }
-
+    
+    #[cfg(feature = "bind")]
     async fn server_bind_request_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
         let bind_request = Request::new(command::BIND, addr_type::IP_V4, &[127, 0, 0, 1], 8080);
         stream.write_all(&bind_request.serialize()?).await?;
