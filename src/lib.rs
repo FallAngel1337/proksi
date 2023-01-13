@@ -83,12 +83,12 @@ impl<'a> Server<'a> {
         loop {
             let (mut stream, _) = listener.accept().await?;
 
-            self.handle_establish(&mut stream).await?;
-            self.handle_requests(&mut stream).await?;
+            self.establish_connection_handler(&mut stream).await?;
+            self.request_handler(&mut stream).await?;
         }
     }
     
-    async fn handle_establish(&self, stream: &mut TcpStream) -> io::Result<()> {
+    async fn establish_connection_handler(&self, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
@@ -117,7 +117,28 @@ impl<'a> Server<'a> {
         Ok(())
     }
 
-    async fn handle_requests(&self, stream: &mut TcpStream) -> io::Result<()> {
+    async fn auth_request(&self, stream: &mut TcpStream, users_list: &[User]) -> io::Result<()> {
+        use std::str;
+
+        let mut buf = Vec::with_capacity(100);
+        stream.read_buf(&mut buf).await?;
+
+        let auth_request = AuthRequest::deserialize(&buf)?;
+
+        let user = User::new(str::from_utf8(auth_request.uname).unwrap(), str::from_utf8(auth_request.passwd).unwrap());
+
+        let response = AuthResponse::new(!users_list.contains(&user) as u8);
+
+        stream.write_all(&response.serialize()?).await?;
+
+        if response.status != 0 {
+            error!("USER NOT FOUND")
+        }
+
+        Ok(())
+    }
+
+    async fn request_handler(&self, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let request = Request::deserialize(&buf)?;
@@ -148,11 +169,10 @@ impl<'a> Server<'a> {
             )),
             #[cfg(feature = "dns-lookup")]
             addr_type::DOMAIN_NAME => {
-                let host = std::str::from_utf8(dst_ip).unwrap();
-                let resolved_list = dns_lookup::lookup_host(host)
-                    .unwrap();
-
+                let host = std::str::from_utf8(dst_ip).unwrap().trim();
+                let resolved_list = dns_lookup::lookup_host(host)?;
                 let resolved = resolved_list.first().unwrap();
+
                 format!("{resolved}:{dst_port}")
                     .to_socket_addrs()
                     .unwrap()
@@ -195,27 +215,6 @@ impl<'a> Server<'a> {
             }
         }
     }
-
-    async fn auth_request(&self, stream: &mut TcpStream, users_list: &[User]) -> io::Result<()> {
-        use std::str;
-
-        let mut buf = Vec::with_capacity(100);
-        stream.read_buf(&mut buf).await?;
-
-        let auth_request = AuthRequest::deserialize(&buf)?;
-
-        let user = User::new(str::from_utf8(auth_request.uname).unwrap(), str::from_utf8(auth_request.passwd).unwrap());
-
-        let response = AuthResponse::new(!users_list.contains(&user) as u8);
-
-        stream.write_all(&response.serialize()?).await?;
-
-        if response.status != 0 {
-            error!("USER NOT FOUND")
-        }
-
-        Ok(())
-    }
 }
 
 impl Default for Server<'_> {
@@ -253,7 +252,7 @@ mod tests {
         assert!(server_establish_test(&mut stream).await.is_ok());
 
         let request = Request::new(command::CONNECT, addr_type::DOMAIN_NAME,
-             &[10, 103,111,111,103,108,101,46,99,111,109], 80);
+             &[10, 103, 111, 111, 103, 108, 101, 46, 99, 111, 109], 80);
         stream.write_all(&request.serialize()?).await?;
 
         let mut buf = Vec::with_capacity(50);
