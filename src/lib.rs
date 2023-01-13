@@ -10,6 +10,7 @@ use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+use std::sync::Arc;
 
 #[macro_use]
 mod macros {
@@ -44,9 +45,9 @@ pub struct User {
 // TODO: Parse from a config file
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Server<'a> {
+pub struct Server {
     version: u8,
-    auth: &'a [u8],
+    auth: Vec<u8>,
     addr: SocketAddr,
     allowed_users: Option<Vec<User>>
 }
@@ -61,36 +62,40 @@ impl User {
     }
 }
 
-impl<'a> Server<'a> {
+impl Server {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, auth: &'a [u8], allowed_users: Option<Vec<User>>) -> io::Result<Self>
+    pub fn new<S>(addr: S, auth: &[u8], allowed_users: Option<Vec<User>>) -> io::Result<Arc<Self>>
     where
         S: ToSocketAddrs,
     {
         let addr = addr.to_socket_addrs()?.next().unwrap();
-        Ok(Self {
-            version: SOCKS_VERSION,
-            auth,
-            addr,
-            allowed_users
-        })
+        Ok(Arc::new(
+            Self {
+                version: SOCKS_VERSION,
+                auth: auth.to_vec(),
+                addr,
+                allowed_users
+            }
+        ))
     }
 
     /// Start the server and listen for new connections
-    pub async fn start(self) -> io::Result<()> {
+    pub async fn start(self: Arc<Self>) -> io::Result<()> {
         let listener = TcpListener::bind(&self.addr).await?;
-
+        
         loop {
             let (mut stream, addr) = listener.accept().await?;
-
+            
             println!("Connection from {addr:?}");
             
-            self.establish_connection_handler(&mut stream).await?;
-            self.request_handler(&mut stream).await?;
+            let server = Arc::clone(&self);
+            tokio::spawn(async move {
+                server.establish_connection_handler(&mut stream).await.unwrap()
+            });
         }
     }
     
-    async fn establish_connection_handler(&self, stream: &mut TcpStream) -> io::Result<()> {
+    async fn establish_connection_handler(self: Arc<Self>, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
@@ -116,7 +121,7 @@ impl<'a> Server<'a> {
             _ => ()
         };
 
-        Ok(())
+        self.request_handler(stream).await
     }
 
     async fn auth_request(&self, stream: &mut TcpStream, users_list: &[User]) -> io::Result<()> {
@@ -140,7 +145,7 @@ impl<'a> Server<'a> {
         Ok(())
     }
 
-    async fn request_handler(&self, stream: &mut TcpStream) -> io::Result<()> {
+    async fn request_handler(self: Arc<Self>, stream: &mut TcpStream) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let request = Request::deserialize(&buf)?;
@@ -236,12 +241,6 @@ impl<'a> Server<'a> {
         stream.write_all(&reply.serialize()?).await?;
 
         Ok(())
-    }
-}
-
-impl Default for Server<'_> {
-    fn default() -> Self {
-        Self::new("127.0.0.1:1080", &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap()
     }
 }
 
