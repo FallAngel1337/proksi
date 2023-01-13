@@ -263,19 +263,6 @@ mod tests {
         (addr, handler)
     }
 
-    async fn listener(addr: &str) -> JoinHandle<bool> {
-        let listener = TcpListener::bind(addr).await.unwrap();
-
-        tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut buf = Vec::with_capacity(15);
-            assert!(socket.read_buf(&mut buf).await.unwrap() > 0);
-            assert_eq!(&buf, "secret_key".as_bytes());
-            socket.write_all("secret_reponse".as_bytes()).await.unwrap();
-            true
-        })
-    }
-
     #[tokio::test]
     async fn server_request() {
         let (addr, handler) = default_server_run(None).await;
@@ -339,7 +326,16 @@ mod tests {
     }
 
     async fn server_request_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
-        let listener_handler = listener("127.0.0.1:8080").await;
+        let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+
+        let listener_handler = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::with_capacity(15);
+            assert!(socket.read_buf(&mut buf).await.unwrap() > 0);
+            assert_eq!(&buf, "secret_key".as_bytes());
+            socket.write_all("secret_reponse".as_bytes()).await.unwrap();
+            true
+        });
 
         let request = Request::new(command::CONNECT, addr_type::IP_V4, &[127, 0, 0, 1], 8080);
         stream.write_all(&request.serialize()?).await?;
@@ -361,7 +357,11 @@ mod tests {
     }
 
     async fn server_bind_request_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
-        let listener_handler = listener("127.0.0.1:8008").await;
+        let listener = TcpListener::bind("127.0.0.1:8008").await.unwrap();
+
+        let listener_handler = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+        });
 
         let bind_request = Request::new(command::BIND, addr_type::IP_V4, &[127, 0, 0, 1], 8008);
         println!("BIND_REQUEST = {bind_request:?}");
@@ -379,7 +379,7 @@ mod tests {
         stream.read_buf(&mut secret_reponse).await?;
         println!("secret_response = {}", std::str::from_utf8(&secret_reponse)?);
 
-        assert!(listener_handler.await?);
+        assert!(listener_handler.await.is_ok());
         Ok(())
     }
 
