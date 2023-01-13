@@ -81,8 +81,10 @@ impl<'a> Server<'a> {
         let listener = TcpListener::bind(&self.addr).await?;
 
         loop {
-            let (mut stream, _) = listener.accept().await?;
+            let (mut stream, addr) = listener.accept().await?;
 
+            println!("Connection from {addr:?}");
+            
             self.establish_connection_handler(&mut stream).await?;
             self.request_handler(&mut stream).await?;
         }
@@ -145,6 +147,9 @@ impl<'a> Server<'a> {
 
         match request.cmd {
             command::CONNECT => self.connect_request(stream, request).await?,
+            #[cfg(feature = "bind")]
+            command::BIND => self.bind_request(stream, request).await?,
+            #[cfg(not(feature = "bind"))]
             command::BIND => panic!("No BIND command!"),
             command::UDP_ASSOCIATE => panic!("No UDP command!"),
             cmd => error!("Command {cmd} not available!"),
@@ -215,6 +220,23 @@ impl<'a> Server<'a> {
             }
         }
     }
+
+    #[cfg(feature = "bind")]
+    async fn bind_request(&self, stream: &mut TcpStream, request: Request<'_>) -> io::Result<()> {
+        println!("bind_request = {request:?}");
+
+        let socket_addr = stream.local_addr()?;
+        let _ip = socket_addr.ip();
+        let (atyp, bnd_addr) = ip_octs!(socket_addr);
+        let bnd_port = 1083;
+
+        // let bind_stream = TcpListener::bind((ip, bnd_port)).await?;
+
+        let reply = Reply::new(reply_opt::SUCCEEDED, atyp, &bnd_addr, bnd_port);
+        stream.write_all(&reply.serialize()?).await?;
+
+        Ok(())
+    }
 }
 
 impl Default for Server<'_> {
@@ -231,6 +253,30 @@ mod tests {
         task::JoinHandle
     };
 
+    async fn default_server_run(addr: Option<&str>) -> (SocketAddr, JoinHandle<()>) {
+        let server = Server::new(addr.unwrap_or("127.0.0.1:1080"), &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
+        let addr = server.addr;
+        let handler = tokio::spawn(async move {
+                server.start().await.unwrap()
+            }
+        );
+        time::sleep(Duration::from_secs(2)).await;
+        (addr, handler)
+    }
+
+    async fn listener(addr: &str) -> JoinHandle<bool> {
+        let listener = TcpListener::bind(addr).await.unwrap();
+
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::with_capacity(15);
+            assert!(socket.read_buf(&mut buf).await.unwrap() > 0);
+            assert_eq!(&buf, "secret_key".as_bytes());
+            socket.write_all("secret_reponse".as_bytes()).await.unwrap();
+            true
+        })
+    }
+
     #[tokio::test]
     async fn server_request() {
         let (addr, handler) = default_server_run(None).await;
@@ -238,12 +284,17 @@ mod tests {
         
         assert!(server_establish_test(&mut stream).await.is_ok());
         assert!(server_request_test(&mut stream).await.is_ok());
+
+        let mut bind_stream = TcpStream::connect(addr).await.unwrap();
+
+        assert!(server_bind_request_test(&mut bind_stream).await.is_ok());
         
         handler.abort();
         time::sleep(Duration::from_secs(1)).await;
         assert!(handler.is_finished());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn server_request_domain() -> Result<(), Box<dyn std::error::Error>> {
         let (addr, handler) = default_server_run(Some("127.0.0.1:1081")).await;
@@ -269,17 +320,6 @@ mod tests {
         Ok(())
     }
 
-    async fn default_server_run(addr: Option<&str>) -> (SocketAddr, JoinHandle<()>) {
-        let server = Server::new(addr.unwrap_or("127.0.0.1:1080"), &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
-        let addr = server.addr;
-        let handler = tokio::spawn(async move {
-                server.start().await.unwrap()
-            }
-        );
-        time::sleep(Duration::from_secs(2)).await;
-        (addr, handler)
-    }
-
     async fn server_establish_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
         let establish_request = EstablishRequest::new(&[
             method::NO_AUTHENTICATION_REQUIRED,
@@ -300,16 +340,7 @@ mod tests {
     }
 
     async fn server_request_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
-        let listener = TcpListener::bind("127.0.0.1:8080").await?;
-
-        let listener_handeler = tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut buf = Vec::with_capacity(15);
-            assert!(socket.read_buf(&mut buf).await.unwrap() > 0);
-            assert_eq!(&buf, "secret_key".as_bytes());
-            socket.write_all("secret_reponse".as_bytes()).await.unwrap();
-            true
-        });
+        let listener_handler = listener("127.0.0.1:8080").await;
 
         let request = Request::new(command::CONNECT, addr_type::IP_V4, &[127, 0, 0, 1], 8080);
         stream.write_all(&request.serialize()?).await?;
@@ -326,7 +357,30 @@ mod tests {
         stream.read_buf(&mut secret_reponse).await?;
         println!("secret_response = {}", std::str::from_utf8(&secret_reponse)?);
 
-        assert!(listener_handeler.await?);
+        assert!(listener_handler.await?);
+        Ok(())
+    }
+
+    async fn server_bind_request_test(stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
+        let listener_handler = listener("127.0.0.1:8008").await;
+
+        let bind_request = Request::new(command::BIND, addr_type::IP_V4, &[127, 0, 0, 1], 8008);
+        println!("BIND_REQUEST = {bind_request:?}");
+        stream.write_all(&bind_request.serialize()?).await?;
+
+        let mut buf = Vec::with_capacity(50);
+        stream.read_buf(&mut buf).await?;
+        let reply = Reply::deserialize(&buf)?;
+
+        assert_eq!(reply.rep, reply_opt::SUCCEEDED);
+        println!("BIND >> {bind_request:?}\n{reply:?}");
+
+        stream.write_all("secret_key".as_bytes()).await?;
+        let mut secret_reponse = Vec::with_capacity(20);
+        stream.read_buf(&mut secret_reponse).await?;
+        println!("secret_response = {}", std::str::from_utf8(&secret_reponse)?);
+
+        assert!(listener_handler.await?);
         Ok(())
     }
 

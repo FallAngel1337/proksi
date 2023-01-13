@@ -22,6 +22,10 @@ features = [
 version = "1.0.8"
 optional = true
 
+[dependencies.rand]
+version = "0.8.5"
+optional = true
+
 [dev-dependencies.tokio]
 version = "1.23.0"
 features = [ "time", "process" ]
@@ -32,4 +36,5 @@ members = [
 ]
 
 [features]
-default = ["dns-lookup"]
+default = ["dns-lookup", "bind"]
+bind = ["rand"]
