@@ -1,0 +1,14 @@
+{
+    "addr": "0.0.0.0:1080",
+    "auth": [0, 2],
+    "allowed_users": [
+        {
+            "username": "alice",
+            "password": "1q2w3e4r"
+        },
+        {
+            "username": "bob",
+            "password": "P4sW0rD"
+        }
+    ]
+}
