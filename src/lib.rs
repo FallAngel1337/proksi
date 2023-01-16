@@ -81,7 +81,9 @@ impl Server {
             
             let server = Arc::clone(&server);
             tokio::spawn(async move {
-                server.establish_connection_handler(&mut stream).await.unwrap()
+                server.establish_connection_handler(&mut stream).await.unwrap_or_else(|err| {
+                    eprintln!("Error: {err}");
+                })
             });
         }
     }
