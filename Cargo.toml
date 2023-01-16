@@ -1,6 +1,7 @@
 [package]
 name = "proksi"
 version = "0.1.0"
+authors = [ "FallAngel<fallangel@protonmail.com>" ]
 description = "A SOCKS5 server library"
 readme = "README.md"
 repository = "https://github.com/FallAngel1337/proksi.git"
