@@ -14,8 +14,17 @@ This project intends to be a full SOCKS v5 based on [`RFC 1928`](https://www.rfc
 - [ ] `UDP ASSOCIATE` command
 - [ ] [`GSSAPI`](https://www.rfc-editor.org/rfc/rfc1961.html) authentication method
 
+## Installation
+Add this to your `Cargo.toml` file:
+```toml
+[dependencies]
+proksi = { git = "https://github.com/FallAngel1337/proksi", branch = "main" }
+```
+
 ### Example
 ```rs
+use proksi::Server;
+
 #[tokio::main]
 async fn main() {
     let server = Server::default(); // Will be listening at 0.0.0.0:1080
