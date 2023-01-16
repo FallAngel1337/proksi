@@ -1,4 +1,4 @@
-use proksi::{User, Server};
+use proksi::{user::User, Server};
 use socks_rs::establish::method;
 use tokio::time::{self, Duration};
 
@@ -6,7 +6,7 @@ use tokio::time::{self, Duration};
 async fn server_curl_test() {
     use tokio::process::Command;
     
-    let server = Server::new("127.0.0.1:1082", &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
+    let server = Server::new("127.0.0.1:1082", vec![method::NO_AUTHENTICATION_REQUIRED], vec![]).unwrap();
     
     let handler = tokio::spawn(async move {
             server.start().await.unwrap()
@@ -35,7 +35,7 @@ async fn server_curl_userpass_test() {
     let (username, password ) = ("admin", "admin");
     let user = User::new(username, password);
 
-    let server = Server::new("127.0.0.1:1083", &[method::USERNAME_PASSWORD], Some(vec![user])).unwrap();
+    let server = Server::new("127.0.0.1:1083", vec![method::USERNAME_PASSWORD], vec![user]).unwrap();
 
     let handler = tokio::spawn(async move {
             server.start().await.unwrap()

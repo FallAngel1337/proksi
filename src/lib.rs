@@ -13,7 +13,7 @@ use tokio::{
 };
 use std::sync::Arc;
 
-mod user;
+pub mod user;
 use user::User;
 
 #[macro_use]
@@ -54,31 +54,32 @@ pub struct Server {
 
 impl Server {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, auth: Vec<u8>, allowed_users: Vec<User>) -> io::Result<Arc<Self>>
+    pub fn new<S>(addr: S, auth: Vec<u8>, allowed_users: Vec<User>) -> io::Result<Self>
     where
         S: ToSocketAddrs,
     {
         let addr = addr.to_socket_addrs()?.next().unwrap();
-        Ok(Arc::new(
+        Ok(
             Self {
                 version: SOCKS_VERSION,
                 auth,
                 addr,
                 allowed_users
             }
-        ))
+        )
     }
 
     /// Start the server and listen for new connections
-    pub async fn start(self: Arc<Self>) -> io::Result<()> {
+    pub async fn start(self) -> io::Result<()> {
         let listener = TcpListener::bind(&self.addr).await?;
-        
+        let server = Arc::new(self);
+
         loop {
             let (mut stream, addr) = listener.accept().await?;
             
             println!("Connection from {addr:?}");
             
-            let server = Arc::clone(&self);
+            let server = Arc::clone(&server);
             tokio::spawn(async move {
                 server.establish_connection_handler(&mut stream).await.unwrap()
             });
@@ -218,6 +219,12 @@ impl Server {
         pipe(stream, &mut socket).await;
 
         Ok(())
+    }
+}
+
+impl Default for Server {
+    fn default() -> Self {
+        Server::new("0.0.0.0:1080", vec![0], vec![]).unwrap()
     }
 }
 

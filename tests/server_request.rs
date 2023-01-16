@@ -43,7 +43,7 @@ pub(crate) mod macros {
 async fn server_request() {
     let server_addr = "127.0.0.1:1080";
 
-    let server = Server::new(server_addr, &[method::NO_AUTHENTICATION_REQUIRED], None).unwrap();
+    let server = Server::default();
     let server_handler = start!(server);
     let listener_handler = listener!("127.0.0.1:8080");
     
