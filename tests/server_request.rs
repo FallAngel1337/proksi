@@ -13,7 +13,7 @@ use tokio::{
 };
 
 #[macro_use]
-mod macros {
+pub(crate) mod macros {
     macro_rules! start {
         ($s:expr) => {
             {

@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use socks_rs::{
     establish::{method, EstablishRequest, EstablishResponse},
     reply::{reply_opt, Reply},
@@ -36,7 +37,7 @@ mod macros {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct User {
     username: String,
     password: String
@@ -44,11 +45,13 @@ pub struct User {
 
 // TODO: Parse from a config file
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Server {
+    #[serde(skip)]
     version: u8,
     auth: Vec<u8>,
     addr: SocketAddr,
+    #[serde(default)]
     allowed_users: Option<Vec<User>>
 }
 
