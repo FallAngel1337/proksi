@@ -12,6 +12,8 @@ license = "MIT"
 [dependencies]
 socks-rs = { path = "./socks-rs" }
 serde_json = "1.0"
+dns-lookup = { version = "1.0.8", optional = true }
+rand = { version = "0.8.5", optional = true }
 
 [dependencies.tokio]
 version = "1.23.0"
@@ -22,10 +24,6 @@ features = [
     "rt-multi-thread",
     "macros"
 ]
-
-[dependencies.dns-lookup]
-version = "1.0.8"
-optional = true
 
 [dependencies.serde]
 version = "1.0"
@@ -43,4 +41,4 @@ members = [
 
 [features]
 default = ["dns-lookup", "bind"]
-bind = []
+bind = ["rand"]

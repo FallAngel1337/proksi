@@ -38,7 +38,6 @@ mod macros {
     }
 }
 
-// TODO: Parse from a config file
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct Server {
@@ -153,7 +152,6 @@ impl Server {
         match request.cmd {
             command::CONNECT => self.connect_request(stream, request).await?,
             #[cfg(feature = "bind")]
-            // Should I place here a `connect_request` before ??
             command::BIND => self.bind_request(stream).await?,
             #[cfg(not(feature = "bind"))]
             command::BIND => panic!("No BIND command!"),
@@ -216,11 +214,15 @@ impl Server {
 
     #[cfg(feature = "bind")]
     async fn bind_request(&self, stream: &mut TcpStream) -> io::Result<()> {
+        use rand::Rng;
+        
         let socket_addr = stream.local_addr()?;
         let ip = socket_addr.ip();
         let (atyp, bnd_addr) = ip_octs!(socket_addr);
-        // TODO: random port
-        let bnd_port = 17568;
+        let bnd_port = {
+            let mut rng = rand::thread_rng();
+            rng.gen()
+        };
 
         let bind_stream = TcpListener::bind((ip, bnd_port)).await?;
 
