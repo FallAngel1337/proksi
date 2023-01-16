@@ -57,11 +57,11 @@ impl<'a> Request<'a> {
 impl<'s> Sendible<'s> for Request<'s> {
     fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.cmd, self.rsv, self.atyp];
-        
+
         if self.atyp == addr_type::DOMAIN_NAME {
             data.push(self.dst_addr.len() as u8);
         }
-        
+
         data.extend(self.dst_addr);
         data.extend([
             ((self.dst_port >> 8) & 0xff) as u8,
@@ -77,11 +77,12 @@ impl<'s> Sendible<'s> for Request<'s> {
             addr_type::IP_V4 => (4, 8),
             addr_type::DOMAIN_NAME => (5, 5 + data[4] as usize),
             addr_type::IP_V6 => (4, 20),
-            atyp => return Err(
-                std::io::Error::new(
+            atyp => {
+                return Err(std::io::Error::new(
                     std::io::ErrorKind::ConnectionAborted,
-                    format!("Invalid address type {atyp}")
-            )),
+                    format!("Invalid address type {atyp}"),
+                ))
+            }
         };
 
         let dst_addr = &data[start..end];
@@ -117,12 +118,17 @@ mod test {
 
     #[test]
     fn domain_request_serr_deser() {
-        let request = Request::new(command::CONNECT, addr_type::DOMAIN_NAME, &[98, 97, 116, 97, 116, 97], 1080);
+        let request = Request::new(
+            command::CONNECT,
+            addr_type::DOMAIN_NAME,
+            &[98, 97, 116, 97, 116, 97],
+            1080,
+        );
         let serialized = request.serialize().unwrap();
         let from_bytes = Request::deserialize(&serialized).unwrap();
 
         println!("=> {:?}", from_bytes.dst_addr);
-        
+
         assert_eq!(request, from_bytes);
     }
 }

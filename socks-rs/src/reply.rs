@@ -56,11 +56,11 @@ impl<'a> Reply<'a> {
 impl<'s> Sendible<'s> for Reply<'s> {
     fn serialize(&self) -> std::io::Result<Vec<u8>> {
         let mut data = vec![self.version, self.rep, self.rsv, self.atyp];
-        
+
         if self.atyp == addr_type::DOMAIN_NAME {
             data.push(self.bnd_addr.len() as u8);
         }
-        
+
         data.extend(self.bnd_addr);
         data.extend([
             ((self.bnd_port >> 8) & 0xff) as u8,
@@ -76,11 +76,12 @@ impl<'s> Sendible<'s> for Reply<'s> {
             addr_type::IP_V4 => (4, 8),
             addr_type::DOMAIN_NAME => (5, 5 + data[4] as usize),
             addr_type::IP_V6 => (4, 20),
-            atyp => return Err(
-                std::io::Error::new(
+            atyp => {
+                return Err(std::io::Error::new(
                     std::io::ErrorKind::ConnectionAborted,
-                    format!("Invalid address type {atyp}")
-            )),
+                    format!("Invalid address type {atyp}"),
+                ))
+            }
         };
 
         let bnd_addr = &data[start..offset];
@@ -116,6 +117,9 @@ mod test {
 
         let bytes = [5, 0, 0, 1, 127, 0, 0, 1, 0, 80];
         let reply = Reply::deserialize(&bytes).unwrap();
-        assert_eq!(reply, Reply::new(reply_opt::SUCCEEDED, addr_type::IP_V4, &[127, 0, 0, 1], 80));
+        assert_eq!(
+            reply,
+            Reply::new(reply_opt::SUCCEEDED, addr_type::IP_V4, &[127, 0, 0, 1], 80)
+        );
     }
 }

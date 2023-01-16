@@ -1,17 +1,17 @@
 use serde::Deserialize;
 use socks_rs::{
+    auth::{AuthRequest, AuthResponse},
     establish::{method, EstablishRequest, EstablishResponse},
     reply::{reply_opt, Reply},
     request::{addr_type, command, Request},
-    auth::{AuthRequest, AuthResponse},
     Sendible, SOCKS_VERSION,
 };
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::sync::Arc;
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
-use std::sync::Arc;
 
 pub mod user;
 use user::User;
@@ -19,14 +19,12 @@ use user::User;
 #[macro_use]
 mod macros {
     macro_rules! ip_octs {
-        ($sock:expr) => {
-            {
-                match $sock.ip() {
-                    std::net::IpAddr::V4(ip) => (addr_type::IP_V4, ip.octets().to_vec()),
-                    std::net::IpAddr::V6(ip) => (addr_type::IP_V6, ip.octets().to_vec()),
-                }
+        ($sock:expr) => {{
+            match $sock.ip() {
+                std::net::IpAddr::V4(ip) => (addr_type::IP_V4, ip.octets().to_vec()),
+                std::net::IpAddr::V6(ip) => (addr_type::IP_V6, ip.octets().to_vec()),
             }
-        };
+        }};
     }
 
     macro_rules! error {
@@ -49,7 +47,7 @@ pub struct Server {
     pub addr: SocketAddr,
     auth: Vec<u8>,
     #[serde(default)]
-    allowed_users: Vec<User>
+    allowed_users: Vec<User>,
 }
 
 impl Server {
@@ -59,14 +57,12 @@ impl Server {
         S: ToSocketAddrs,
     {
         let addr = addr.to_socket_addrs()?.next().unwrap();
-        Ok(
-            Self {
-                version: SOCKS_VERSION,
-                auth,
-                addr,
-                allowed_users
-            }
-        )
+        Ok(Self {
+            version: SOCKS_VERSION,
+            auth,
+            addr,
+            allowed_users,
+        })
     }
 
     /// Start the server and listen for new connections
@@ -76,24 +72,31 @@ impl Server {
 
         loop {
             let (mut stream, addr) = listener.accept().await?;
-            
+
             println!("Connection from {addr:?}");
-            
+
             let server = Arc::clone(&server);
             tokio::spawn(async move {
-                server.establish_connection_handler(&mut stream).await.unwrap_or_else(|err| {
-                    eprintln!("Error: {err}");
-                })
+                server
+                    .establish_connection_handler(&mut stream)
+                    .await
+                    .unwrap_or_else(|err| {
+                        eprintln!("Error: {err}");
+                    })
             });
         }
     }
-    
-    async fn establish_connection_handler(self: Arc<Self>, stream: &mut TcpStream) -> io::Result<()> {
+
+    async fn establish_connection_handler(
+        self: Arc<Self>,
+        stream: &mut TcpStream,
+    ) -> io::Result<()> {
         let mut buf = Vec::with_capacity(50);
         stream.read_buf(&mut buf).await?;
         let establish_request = EstablishRequest::deserialize(&buf).unwrap();
 
-        let establish_method = self.auth
+        let establish_method = self
+            .auth
             .iter()
             .max_by_key(|&k| establish_request.methods.contains(k))
             .copied()
@@ -108,7 +111,7 @@ impl Server {
             method::USERNAME_PASSWORD => self.auth_request(stream).await?,
             method::GSSAPI => panic!("No support for GSSAPI yet"),
             method::NO_ACCEPTABLE_METHODS => error!("NO ACCEPTABLE METHODS"),
-            _ => ()
+            _ => (),
         };
 
         self.request_handler(stream).await
@@ -122,15 +125,21 @@ impl Server {
 
         let auth_request = AuthRequest::deserialize(&buf)?;
 
-        let user = User::new(str::from_utf8(auth_request.uname).unwrap(), str::from_utf8(auth_request.passwd).unwrap());
+        let user = User::new(
+            str::from_utf8(auth_request.uname).unwrap(),
+            str::from_utf8(auth_request.passwd).unwrap(),
+        );
 
         let response = AuthResponse::new(!self.allowed_users.contains(&user) as u8);
 
         stream.write_all(&response.serialize()?).await?;
 
         if response.status != 0 {
-            error!("({username}:{password}) WRONG user/password",
-            username = user.username, password = user.password)
+            error!(
+                "({username}:{password}) WRONG user/password",
+                username = user.username,
+                password = user.password
+            )
         }
 
         Ok(())
@@ -155,7 +164,11 @@ impl Server {
         Ok(())
     }
 
-    async fn connect_request(&self, stream: &mut TcpStream, request: Request<'_>) -> io::Result<()>{
+    async fn connect_request(
+        &self,
+        stream: &mut TcpStream,
+        request: Request<'_>,
+    ) -> io::Result<()> {
         let socket_addr = stream.local_addr()?;
         let (atyp, ip) = ip_octs!(socket_addr);
         let port = socket_addr.port();
@@ -165,10 +178,9 @@ impl Server {
         let mut reply = Reply::new(reply_opt::SUCCEEDED, atyp, &ip, port);
 
         let dst_socket = match request.atyp {
-            addr_type::IP_V4 => SocketAddr::from((
-                TryInto::<[u8; 4]>::try_into(dst_ip).unwrap(),
-                dst_port
-            )),
+            addr_type::IP_V4 => {
+                SocketAddr::from((TryInto::<[u8; 4]>::try_into(dst_ip).unwrap(), dst_port))
+            }
             #[cfg(feature = "dns-lookup")]
             addr_type::DOMAIN_NAME => {
                 let host = std::str::from_utf8(dst_ip).unwrap().trim();
@@ -180,13 +192,12 @@ impl Server {
                     .unwrap()
                     .next()
                     .unwrap()
-            },
+            }
             #[cfg(not(feature = "dns-lookup"))]
             addr_type::DOMAIN_NAME => panic!("DOMAIN_NAME is not available"),
-            addr_type::IP_V6 => SocketAddr::from((
-                TryInto::<[u8; 16]>::try_into(dst_ip).unwrap(),
-                dst_port,
-            )),
+            addr_type::IP_V6 => {
+                SocketAddr::from((TryInto::<[u8; 16]>::try_into(dst_ip).unwrap(), dst_port))
+            }
             atyp => {
                 reply.rep = reply_opt::ADDRESS_TYPE_NOT_SUPPORTED;
                 stream.write_all(&reply.serialize()?).await?;

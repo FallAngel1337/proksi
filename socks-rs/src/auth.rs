@@ -1,11 +1,11 @@
 //! # Auth
 //! This moodule contains the struct that describes the
 //! user and password authentication.
-//! 
+//!
 //! ## **SECURITY**:
-//! 
+//!
 //! A pointed by the RFC:
-//!  "Since the request carries the password in cleartext, this subnegotiation 
+//!  "Since the request carries the password in cleartext, this subnegotiation
 //! is not recommended for environments where "sniffing" is possible and practical."
 
 use crate::Sendible;
@@ -26,7 +26,7 @@ pub struct AuthRequest<'a> {
     pub plen: u8,
 
     /// password
-    pub passwd: &'a [u8]
+    pub passwd: &'a [u8],
 }
 
 /// The auth reponse according to [`RFC 1929`](https://www.rfc-editor.org/rfc/rfc1929)
@@ -36,7 +36,7 @@ pub struct AuthResponse {
     pub version: u8,
 
     /// reponse status
-    pub status: u8
+    pub status: u8,
 }
 
 impl<'a> AuthRequest<'a> {
@@ -49,7 +49,7 @@ impl<'a> AuthRequest<'a> {
             ulen: uname.len() as u8,
             uname,
             plen: passwd.len() as u8,
-            passwd
+            passwd,
         }
     }
 }
@@ -59,11 +59,10 @@ impl AuthResponse {
     pub fn new(status: u8) -> Self {
         Self {
             version: 0x1,
-            status
+            status,
         }
     }
 }
-
 
 impl<'s> Sendible<'s> for AuthRequest<'s> {
     fn serialize(&self) -> std::io::Result<Vec<u8>> {
@@ -76,19 +75,19 @@ impl<'s> Sendible<'s> for AuthRequest<'s> {
 
     fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, ulen) = (data[0], data[1]);
-        
+
         let offset = ulen as usize + 2;
-        
+
         let uname = &data[2..offset];
         let plen = data[offset];
-        let passwd = &data[offset+1..];
+        let passwd = &data[offset + 1..];
 
         Ok(Self {
             version,
             ulen,
             uname,
             plen,
-            passwd
+            passwd,
         })
     }
 }
@@ -101,10 +100,7 @@ impl<'s> Sendible<'s> for AuthResponse {
     fn deserialize(data: &'s [u8]) -> std::io::Result<Self> {
         let (version, status) = (data[0], data[1]);
 
-        Ok(Self {
-            version,
-            status
-        })
+        Ok(Self { version, status })
     }
 }
 

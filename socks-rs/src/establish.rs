@@ -98,7 +98,13 @@ mod test {
 
         let bytes = [5, 2, 0, 2];
         let establish_request = EstablishRequest::deserialize(&bytes).unwrap();
-        assert_eq!(establish_request, EstablishRequest::new(&[method::NO_AUTHENTICATION_REQUIRED, method::USERNAME_PASSWORD]));
+        assert_eq!(
+            establish_request,
+            EstablishRequest::new(&[
+                method::NO_AUTHENTICATION_REQUIRED,
+                method::USERNAME_PASSWORD
+            ])
+        );
     }
 
     #[test]
@@ -110,6 +116,9 @@ mod test {
 
         let bytes = [5, 2];
         let establish_request = EstablishResponse::deserialize(&bytes).unwrap();
-        assert_eq!(establish_request, EstablishResponse::new(method::USERNAME_PASSWORD));
+        assert_eq!(
+            establish_request,
+            EstablishResponse::new(method::USERNAME_PASSWORD)
+        );
     }
 }

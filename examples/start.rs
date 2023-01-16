@@ -1,5 +1,5 @@
-use std::{fs::File, io::Read};
 use proksi::Server;
+use std::{fs::File, io::Read};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -18,7 +18,6 @@ const CONFIG_FILE: &str = r#"
 
 #[test]
 fn parsing_test() {
-    let server = serde_json::from_str::<Server>(CONFIG_FILE)
-        .unwrap();
+    let server = serde_json::from_str::<Server>(CONFIG_FILE).unwrap();
     println!("{server:#?}");
 }
