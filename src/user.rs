@@ -5,8 +5,8 @@ use serde::Deserialize;
     PartialEq, Deserialize
 )]
 pub struct User {
-    username: String,
-    password: String
+    pub username: String,
+    pub password: String
 }
 
 #[allow(missing_docs, unused)]

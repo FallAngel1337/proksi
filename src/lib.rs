@@ -46,7 +46,7 @@ mod macros {
 pub struct Server {
     #[serde(skip)]
     version: u8,
-    addr: SocketAddr,
+    pub addr: SocketAddr,
     auth: Vec<u8>,
     #[serde(default)]
     allowed_users: Vec<User>
@@ -129,7 +129,8 @@ impl Server {
         stream.write_all(&response.serialize()?).await?;
 
         if response.status != 0 {
-            error!("USER NOT FOUND")
+            error!("({username}:{password}) WRONG user/password",
+            username = user.username, password = user.password)
         }
 
         Ok(())
