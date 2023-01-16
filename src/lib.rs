@@ -215,7 +215,7 @@ impl Server {
     #[cfg(feature = "bind")]
     async fn bind_request(&self, stream: &mut TcpStream) -> io::Result<()> {
         use rand::Rng;
-        
+
         let socket_addr = stream.local_addr()?;
         let ip = socket_addr.ip();
         let (atyp, bnd_addr) = ip_octs!(socket_addr);
