@@ -13,6 +13,9 @@ use tokio::{
 };
 use std::sync::Arc;
 
+mod user;
+use user::User;
+
 #[macro_use]
 mod macros {
     macro_rules! ip_octs {
@@ -37,37 +40,21 @@ mod macros {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
-pub struct User {
-    username: String,
-    password: String
-}
-
 // TODO: Parse from a config file
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct Server {
     #[serde(skip)]
     version: u8,
-    auth: Vec<u8>,
     addr: SocketAddr,
+    auth: Vec<u8>,
     #[serde(default)]
-    allowed_users: Option<Vec<User>>
-}
-
-#[allow(missing_docs, unused)]
-impl User {
-    pub fn new(username: &str, password: &str) -> Self {
-        Self {
-            username: username.to_string(),
-            password: password.to_string()
-        }
-    }
+    allowed_users: Vec<User>
 }
 
 impl Server {
     /// Constructs a new Server
-    pub fn new<S>(addr: S, auth: &[u8], allowed_users: Option<Vec<User>>) -> io::Result<Arc<Self>>
+    pub fn new<S>(addr: S, auth: Vec<u8>, allowed_users: Vec<User>) -> io::Result<Arc<Self>>
     where
         S: ToSocketAddrs,
     {
@@ -75,7 +62,7 @@ impl Server {
         Ok(Arc::new(
             Self {
                 version: SOCKS_VERSION,
-                auth: auth.to_vec(),
+                auth,
                 addr,
                 allowed_users
             }
@@ -127,8 +114,6 @@ impl Server {
     async fn auth_request(&self, stream: &mut TcpStream) -> io::Result<()> {
         use std::str;
 
-        let users_list = self.allowed_users.as_ref().unwrap();
-
         let mut buf = Vec::with_capacity(100);
         stream.read_buf(&mut buf).await?;
 
@@ -136,7 +121,7 @@ impl Server {
 
         let user = User::new(str::from_utf8(auth_request.uname).unwrap(), str::from_utf8(auth_request.passwd).unwrap());
 
-        let response = AuthResponse::new(!users_list.contains(&user) as u8);
+        let response = AuthResponse::new(!self.allowed_users.contains(&user) as u8);
 
         stream.write_all(&response.serialize()?).await?;
 
